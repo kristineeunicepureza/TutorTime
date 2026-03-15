@@ -208,6 +208,43 @@ const styles = `
   font-weight: bold;
   cursor: pointer;
 }
+
+.select-field {
+  display: flex;
+  align-items: center;
+  background-color: #F5F7FA;
+  height: 52px;
+  padding: 0 14px;
+  margin-bottom: 14px;
+  border-radius: 4px;
+  width: 100%;
+  max-width: 400px;
+  box-sizing: border-box;
+}
+
+.select-icon {
+  font-size: 16px;
+  margin-right: 10px;
+}
+
+.select-field select {
+  flex: 1;
+  border: none;
+  background: none;
+  font-size: 14px;
+  color: #222222;
+  outline: none;
+  font-family: inherit;
+}
+
+.select-field select:disabled {
+  background-color: #E8EBF0;
+  color: #CCCCCC;
+}
+
+.select-field select option {
+  color: #222222;
+}
 `;
 
 function SignUp({ onSwitchToLogin, onSignUpSuccess }) {
@@ -215,6 +252,8 @@ function SignUp({ onSwitchToLogin, onSignUpSuccess }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [department, setDepartment] = useState('Computer Science');
+  const [yearLevel, setYearLevel] = useState('Junior (Year 3)');
   const [selectedRole, setSelectedRole] = useState('Student');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -246,13 +285,14 @@ function SignUp({ onSwitchToLogin, onSignUpSuccess }) {
     setLoading(true);
     try {
       const displayName = `${fullName} (${selectedRole})`;
-      const response = await registerUser(email, password, displayName);
+      const roleUppercase = selectedRole.toUpperCase();
+      const response = await registerUser(email, password, displayName, roleUppercase);
       if (response.success) {
         alert(response.message);
-        localStorage.setItem('userRole', selectedRole);
+        localStorage.setItem('userRole', roleUppercase);
         if (onSignUpSuccess) {
-          // ✅ ADDED: pass fullName (clean, no role tag) so dashboard shows the real name
-          onSignUpSuccess(email, fullName.trim());
+          // ✅ FIXED: pass the selected role so dashboard shows correct view
+          onSignUpSuccess(email, fullName.trim(), department, yearLevel, roleUppercase);
         }
       } else {
         // response.success === false -> show backend-provided message
@@ -339,6 +379,46 @@ function SignUp({ onSwitchToLogin, onSignUpSuccess }) {
               onChange={(e) => setConfirmPassword(e.target.value)}
               disabled={loading}
             />
+          </div>
+
+          {/* Department */}
+          <div className="select-field">
+            <span className="select-icon">🏫</span>
+            <select
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              disabled={loading}
+            >
+              <option value="Computer Science">Computer Science</option>
+              <option value="Engineering">Engineering</option>
+              <option value="Business">Business</option>
+              <option value="Mathematics">Mathematics</option>
+              <option value="Physics">Physics</option>
+              <option value="Chemistry">Chemistry</option>
+              <option value="Biology">Biology</option>
+              <option value="English">English</option>
+              <option value="History">History</option>
+              <option value="Psychology">Psychology</option>
+              <option value="Art">Art</option>
+              <option value="Music">Music</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          {/* Year Level */}
+          <div className="select-field">
+            <span className="select-icon">📊</span>
+            <select
+              value={yearLevel}
+              onChange={(e) => setYearLevel(e.target.value)}
+              disabled={loading}
+            >
+              <option value="Freshman (Year 1)">Freshman (Year 1)</option>
+              <option value="Sophomore (Year 2)">Sophomore (Year 2)</option>
+              <option value="Junior (Year 3)">Junior (Year 3)</option>
+              <option value="Senior (Year 4)">Senior (Year 4)</option>
+              <option value="Graduate">Graduate</option>
+            </select>
           </div>
 
           {/* Role Section — label and cards grouped together */}
