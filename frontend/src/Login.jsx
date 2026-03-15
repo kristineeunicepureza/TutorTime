@@ -32,9 +32,10 @@ function Login({ onSwitchToSignUp, onLoginSuccess }) {
           alert(response.message);
         }
         if (onLoginSuccess) {
-          // ✅ ADDED: extract display name from API response so dashboard can show it
+          // ✅ ADDED: extract display name and role from API response
           const displayName = response.user?.name || response.displayName || null;
-          onLoginSuccess(email, displayName);
+          const userRole = response.user?.role || response.role || 'STUDENT';
+          onLoginSuccess(email, displayName, userRole);
         }
       } else {
         // response.success === false -> show backend-provided message
