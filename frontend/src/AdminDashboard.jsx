@@ -1,0 +1,682 @@
+import { useState, useEffect } from 'react';
+import './TutorTimeDashboard.css';
+
+import { getInitials } from './utils/helpers';
+import { Avatar } from './components/Avatar';
+
+// ════════════════════════════════════════════════════════════════════
+// ADMIN DASHBOARD
+// ════════════════════════════════════════════════════════════════════
+function AdminDashboard() {
+  const [activeNav, setActiveNav] = useState('dashboard');
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications] = useState([]);
+
+  // Logout confirmation
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+
+  // Tutor verification
+  const [pendingTutors, setPendingTutors] = useState([]);
+  const [verifiedTutors, setVerifiedTutors] = useState([]);
+  const [tutorsLoading, setTutorsLoading] = useState(true);
+  const [selectedTutor, setSelectedTutor] = useState(null);
+  const [tutorDetailModalOpen, setTutorDetailModalOpen] = useState(false);
+
+  // Subjects management
+  const [subjects, setSubjects] = useState([]);
+  const [subjectsLoading, setSubjectsLoading] = useState(true);
+  const [newSubjectModal, setNewSubjectModal] = useState(false);
+  const [newSubject, setNewSubject] = useState({ name: '', description: '' });
+
+  // System logs
+  const [systemLogs, setSystemLogs] = useState([]);
+  const [logsLoading, setLogsLoading] = useState(true);
+
+  const displayName = localStorage.getItem('userName') || 'Admin';
+  const userInitials = getInitials(displayName);
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  // ── Fetch pending tutor verification requests ──────────────────────
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    if (!token) { setTutorsLoading(false); return; }
+    fetch('http://localhost:8080/api/admin/tutor-requests', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(data => {
+        setPendingTutors(Array.isArray(data.data) ? data.data : []);
+        setTutorsLoading(false);
+      })
+      .catch(() => setTutorsLoading(false));
+  }, []);
+
+  // ── Fetch verified tutors ─────────────────────────────────────────
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+    fetch('http://localhost:8080/api/admin/tutors/verified', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(data => {
+        setVerifiedTutors(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {});
+  }, []);
+
+  // ── Fetch subjects ────────────────────────────────────────────────
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    if (!token) { setSubjectsLoading(false); return; }
+    fetch('http://localhost:8080/api/admin/subjects', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(data => {
+        setSubjects(Array.isArray(data.data) ? data.data : []);
+        setSubjectsLoading(false);
+      })
+      .catch(() => setSubjectsLoading(false));
+  }, []);
+
+  // ── Fetch system logs ─────────────────────────────────────────────
+  // TODO: Implement system logs fetching when backend endpoint is ready
+  useEffect(() => {
+    // For now, set empty logs and mark as loaded
+    setSystemLogs([]);
+    setLogsLoading(false);
+  }, []);
+
+  const navItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: '⊞' },
+    { id: 'tutors', label: 'Tutors', icon: '👨‍🏫' },
+    { id: 'subjects', label: 'Subjects', icon: '📚' },
+    { id: 'logs', label: 'System Logs', icon: '📋' },
+  ];
+
+  const handleNavClick = (id) => {
+    setActiveNav(id);
+    setNotifOpen(false);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('userName');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('userEmail');
+    window.location.href = '/';
+  };
+
+  const handleLogoutClick = () => {
+    setLogoutConfirmOpen(true);
+  };
+
+  const handleViewTutorDetails = (tutor) => {
+    setSelectedTutor(tutor);
+    setTutorDetailModalOpen(true);
+  };
+
+  const handleApproveTutor = async (tutorId) => {
+    const token = localStorage.getItem('authToken');
+    try {
+      const res = await fetch(`http://localhost:8080/api/admin/tutor/${tutorId}/approve`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPendingTutors(prev => prev.filter(t => t.tutorId !== tutorId));
+        alert('✅ Tutor approved successfully!');
+      } else {
+        alert('❌ ' + data.message);
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Failed to approve tutor. Please try again.');
+    }
+  };
+
+  const handleRejectTutor = async (tutorId) => {
+    const reason = prompt('Enter reason for rejection:');
+    if (!reason) return;
+
+    const token = localStorage.getItem('authToken');
+    try {
+      const res = await fetch(`http://localhost:8080/api/admin/tutor/${tutorId}/reject`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPendingTutors(prev => prev.filter(t => t.tutorId !== tutorId));
+        alert('❌ Tutor rejected.');
+      } else {
+        alert('Error: ' + data.message);
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Failed to reject tutor. Please try again.');
+    }
+  };
+
+  const handleAddSubject = async () => {
+    if (!newSubject.name) {
+      alert('Subject name is required');
+      return;
+    }
+    const token = localStorage.getItem('authToken');
+    try {
+      const res = await fetch('http://localhost:8080/api/admin/subjects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(newSubject),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSubjects(prev => [data.data, ...prev]);
+        setNewSubjectModal(false);
+        setNewSubject({ name: '', description: '' });
+        alert('✅ Subject added successfully!');
+      } else {
+        alert('❌ ' + data.message);
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Failed to add subject. Please try again.');
+    }
+  };
+
+  const renderContent = () => {
+    if (activeNav === 'dashboard') {
+      return (
+        <div className="page-content">
+          <div className="page-header">
+            <h1 className="page-title">Admin Dashboard 🛡️</h1>
+            <p className="page-subtitle">System management and monitoring overview.</p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' }}>
+            <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
+              <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--primary)' }}>
+                {pendingTutors.length}
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>Pending Verifications</div>
+            </div>
+            <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
+              <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--success)' }}>
+                {verifiedTutors.length}
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>Verified Tutors</div>
+            </div>
+            <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
+              <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--purple)' }}>
+                {subjects.length}
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>Academic Subjects</div>
+            </div>
+            <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
+              <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--warning)' }}>
+                {systemLogs.length}
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>System Events</div>
+            </div>
+          </div>
+
+          <div className="two-col">
+            <div className="card">
+              <h2 className="section-title" style={{ marginBottom: 16 }}>Recent Activities</h2>
+              {systemLogs.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>No activity logs</div>
+              ) : (
+                systemLogs.slice(0, 5).map((log, idx) => (
+                  <div key={idx} style={{ paddingBottom: '12px', borderBottom: '1px solid var(--border)', fontSize: '13px' }}>
+                    <div style={{ fontWeight: 500 }}>{log.action}</div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '4px' }}>{log.timestamp}</div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="card">
+              <h2 className="section-title" style={{ marginBottom: 16 }}>Quick Actions</h2>
+              <button className="btn-primary" onClick={() => setActiveNav('tutors')} style={{ width: '100%', marginBottom: '10px' }}>
+                👨‍🏫 Review Pending Tutors
+              </button>
+              <button className="btn-primary" onClick={() => setActiveNav('subjects')} style={{ width: '100%', marginBottom: '10px', background: 'var(--purple)' }}>
+                📚 Manage Subjects
+              </button>
+              <button className="btn-primary" onClick={() => setActiveNav('logs')} style={{ width: '100%', background: 'var(--warning)' }}>
+                📋 View All Logs
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeNav === 'tutors') {
+      return (
+        <div className="page-content">
+          <div className="page-header">
+            <h1 className="page-title">Tutor Management</h1>
+            <p className="page-subtitle">Verify and manage tutors in the system.</p>
+          </div>
+
+          <div className="card">
+            <h2 className="section-title" style={{ marginBottom: 16 }}>
+              Pending Verifications ({pendingTutors.length})
+            </h2>
+
+            {tutorsLoading ? (
+              <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>Loading tutors...</div>
+            ) : pendingTutors.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>No pending verifications</div>
+            ) : (
+              <div style={{ display: 'grid', gap: '12px' }}>
+                {pendingTutors.map(tutor => (
+                  <div key={tutor.tutorId} style={{
+                    padding: '16px',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, marginBottom: '4px' }}>👤 {tutor.name}</div>
+                      <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                        📧 {tutor.email}
+                      </div>
+                      <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                        Submitted: {tutor.createdAt ? new Date(tutor.createdAt).toLocaleDateString() : 'N/A'}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        className="btn-primary"
+                        onClick={() => handleViewTutorDetails(tutor)}
+                        style={{ background: 'var(--purple)', padding: '8px 16px', fontSize: '13px' }}
+                      >
+                        👁 View Details
+                      </button>
+                      <button
+                        className="btn-primary"
+                        onClick={() => handleApproveTutor(tutor.tutorId)}
+                        style={{ background: 'var(--success)', padding: '8px 16px', fontSize: '13px' }}
+                      >
+                        ✓ Approve
+                      </button>
+                      <button
+                        className="btn-primary"
+                        onClick={() => handleRejectTutor(tutor.tutorId)}
+                        style={{ background: 'var(--error)', padding: '8px 16px', fontSize: '13px' }}
+                      >
+                        ✕ Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="card" style={{ marginTop: '20px' }}>
+            <h2 className="section-title" style={{ marginBottom: 16 }}>
+              Verified Tutors ({verifiedTutors.length})
+            </h2>
+
+            {verifiedTutors.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>No verified tutors yet</div>
+            ) : (
+              <div style={{ display: 'grid', gap: '12px' }}>
+                {verifiedTutors.map(tutor => (
+                  <div key={tutor.id} style={{
+                    padding: '16px',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div>
+                      <div style={{ fontWeight: 600, marginBottom: '4px' }}>{tutor.name}</div>
+                      <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                        📧 {tutor.email} • 📚 {tutor.subject}
+                      </div>
+                    </div>
+                    <span style={{
+                      background: 'var(--success-light)',
+                      color: 'var(--success)',
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 600
+                    }}>
+                      ✓ Verified
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    if (activeNav === 'subjects') {
+      return (
+        <div className="page-content">
+          <div className="page-header">
+            <h1 className="page-title">Manage Subjects</h1>
+            <p className="page-subtitle">Add and manage academic subjects available for tutoring.</p>
+          </div>
+
+          <div className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h2 className="section-title">Academic Subjects ({subjects.length})</h2>
+              <button className="btn-primary" onClick={() => setNewSubjectModal(true)}>
+                ➕ Add Subject
+              </button>
+            </div>
+
+            {subjectsLoading ? (
+              <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>Loading subjects...</div>
+            ) : subjects.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>No subjects yet</div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '16px' }}>
+                {subjects.map(subject => (
+                  <div key={subject.id} style={{
+                    padding: '16px',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    background: 'var(--bg)'
+                  }}>
+                    <div style={{ fontWeight: 600, marginBottom: '8px' }}>📚 {subject.name}</div>
+                    <div style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                      {subject.description || 'No description'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ADD SUBJECT MODAL */}
+          {newSubjectModal && (
+            <div className="modal-overlay" onClick={() => setNewSubjectModal(false)}>
+              <div className="modal-box" onClick={e => e.stopPropagation()}>
+                <div className="modal-header">
+                  <h2 className="modal-title">Add New Subject</h2>
+                  <button className="modal-close" onClick={() => setNewSubjectModal(false)}>✕</button>
+                </div>
+
+                <div className="modal-body">
+                  <div className="modal-field">
+                    <label className="modal-label">Subject Name</label>
+                    <input
+                      className="modal-input"
+                      value={newSubject.name}
+                      onChange={e => setNewSubject({ ...newSubject, name: e.target.value })}
+                      placeholder="e.g. Mathematics"
+                    />
+                  </div>
+
+                  <div className="modal-field">
+                    <label className="modal-label">Description</label>
+                    <textarea
+                      className="modal-input"
+                      value={newSubject.description}
+                      onChange={e => setNewSubject({ ...newSubject, description: e.target.value })}
+                      placeholder="Brief description of the subject"
+                      rows={3}
+                      style={{ resize: 'vertical', fontFamily: 'inherit', padding: '10px 14px' }}
+                    />
+                  </div>
+                </div>
+
+                <div className="modal-footer">
+                  <button className="btn-ghost" onClick={() => setNewSubjectModal(false)}>Cancel</button>
+                  <button className="btn-primary" onClick={handleAddSubject}>Add Subject</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (activeNav === 'logs') {
+      return (
+        <div className="page-content">
+          <div className="page-header">
+            <h1 className="page-title">System Logs</h1>
+            <p className="page-subtitle">View all system activity and audit logs.</p>
+          </div>
+
+          <div className="card">
+            {logsLoading ? (
+              <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>Loading logs...</div>
+            ) : systemLogs.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>No system logs</div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                      <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, fontSize: '13px', color: 'var(--text-muted)' }}>Action</th>
+                      <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, fontSize: '13px', color: 'var(--text-muted)' }}>User</th>
+                      <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, fontSize: '13px', color: 'var(--text-muted)' }}>Timestamp</th>
+                      <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, fontSize: '13px', color: 'var(--text-muted)' }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {systemLogs.map((log, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '12px', fontSize: '13px' }}>{log.action}</td>
+                        <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-muted)' }}>{log.user || 'System'}</td>
+                        <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-muted)' }}>{log.timestamp}</td>
+                        <td style={{ padding: '12px' }}>
+                          <span style={{
+                            background: log.status === 'SUCCESS' ? 'var(--success-light)' : 'var(--error-light)',
+                            color: log.status === 'SUCCESS' ? 'var(--success)' : 'var(--error)',
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: 600
+                          }}>
+                            {log.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+  };
+
+  return (
+    <div className="dashboard-root">
+      {/* LOGOUT CONFIRMATION MODAL */}
+      {logoutConfirmOpen && (
+        <div className="modal-overlay" onClick={() => setLogoutConfirmOpen(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Confirm Logout</h2>
+              <button className="modal-close" onClick={() => setLogoutConfirmOpen(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <p style={{ margin: 0, color: 'var(--text)', lineHeight: '1.6' }}>
+                Are you sure you want to logout? You'll need to login again to access your account.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-ghost" onClick={() => setLogoutConfirmOpen(false)}>Cancel</button>
+              <button className="btn-primary" onClick={handleLogout} style={{ background: 'var(--error)' }}>Logout</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TUTOR DETAILS MODAL */}
+      {tutorDetailModalOpen && selectedTutor && (
+        <div className="modal-overlay" onClick={() => setTutorDetailModalOpen(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h2 className="modal-title">👤 Tutor Profile Details</h2>
+              <button className="modal-close" onClick={() => setTutorDetailModalOpen(false)}>✕</button>
+            </div>
+
+            <div className="modal-body" style={{ maxHeight: '500px', overflowY: 'auto' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>NAME</label>
+                <div style={{ fontSize: '14px', fontWeight: 500, marginTop: '4px' }}>{selectedTutor.name}</div>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>EMAIL</label>
+                <div style={{ fontSize: '14px', fontWeight: 500, marginTop: '4px' }}>{selectedTutor.email}</div>
+              </div>
+
+              {selectedTutor.bio && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>BIO</label>
+                  <div style={{ fontSize: '14px', marginTop: '4px', lineHeight: '1.5' }}>{selectedTutor.bio}</div>
+                </div>
+              )}
+
+              {selectedTutor.specialization && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>SPECIALIZATION</label>
+                  <div style={{ fontSize: '14px', fontWeight: 500, marginTop: '4px' }}>📚 {selectedTutor.specialization}</div>
+                </div>
+              )}
+
+              {selectedTutor.yearsOfExperience && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>YEARS OF EXPERIENCE</label>
+                  <div style={{ fontSize: '14px', fontWeight: 500, marginTop: '4px' }}>{selectedTutor.yearsOfExperience} years</div>
+                </div>
+              )}
+
+              {selectedTutor.hourlyRate && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>HOURLY RATE</label>
+                  <div style={{ fontSize: '14px', fontWeight: 500, marginTop: '4px', color: 'var(--success)' }}>${selectedTutor.hourlyRate}/hour</div>
+                </div>
+              )}
+
+              {selectedTutor.rating && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>CURRENT RATING</label>
+                  <div style={{ fontSize: '14px', fontWeight: 500, marginTop: '4px' }}>⭐ {selectedTutor.rating.toFixed(1)} / 5.0</div>
+                </div>
+              )}
+
+              <div style={{ marginBottom: '16px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>APPLICATION DATE</label>
+                <div style={{ fontSize: '14px', fontWeight: 500, marginTop: '4px' }}>
+                  {selectedTutor.createdAt ? new Date(selectedTutor.createdAt).toLocaleDateString() : 'N/A'}
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn-ghost" onClick={() => setTutorDetailModalOpen(false)}>Close</button>
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  setTutorDetailModalOpen(false);
+                  handleApproveTutor(selectedTutor.tutorId);
+                }}
+                style={{ background: 'var(--success)' }}
+              >
+                ✓ Approve Tutor
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TOPBAR */}
+      <header className="topbar">
+        <div className="topbar-logo">
+          <div className="topbar-logo-circle">T</div>
+          <span className="topbar-logo-text">TutorTime</span>
+        </div>
+
+        <div className="topbar-search">
+          <span className="topbar-search-icon">🔍</span>
+          <input className="topbar-search-input" placeholder="Search..." disabled />
+        </div>
+
+        <div className="topbar-right">
+          <div className="notif-wrapper">
+            <button className="notif-btn" onClick={() => setNotifOpen(!notifOpen)}>
+              🔔
+              {unreadCount > 0 && <span className="notif-badge">{unreadCount}</span>}
+            </button>
+            {notifOpen && (
+              <div className="notif-panel">
+                <div className="notif-panel-header">Notifications</div>
+                {notifications.length === 0 ? (
+                  <div style={{ padding: '16px', textAlign: 'center', color: '#888' }}>No notifications</div>
+                ) : (
+                  notifications.map(n => (
+                    <div key={n.id} className={`notif-item ${n.read ? 'read' : 'unread'}`}>
+                      <div className="notif-text">{n.text}</div>
+                      <div className="notif-time">{n.time}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="user-chip">
+            <div className="user-meta">
+              <div className="user-name">{displayName}</div>
+            </div>
+            <Avatar initials={userInitials} size={36} />
+          </div>
+        </div>
+      </header>
+
+      <div className="dashboard-body">
+        <aside className="sidebar">
+          {navItems.map(item => (
+            <button
+              key={item.id}
+              className={`nav-item ${activeNav === item.id ? 'active' : ''}`}
+              onClick={() => handleNavClick(item.id)}
+            >
+              <span className="nav-icon">{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+          <div className="sidebar-spacer" />
+          <button className="nav-item nav-logout" onClick={handleLogoutClick}>
+            <span className="nav-icon">🚪</span>
+            Log Out
+          </button>
+        </aside>
+
+        <main className="dashboard-main">
+          {renderContent()}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+export default AdminDashboard;
