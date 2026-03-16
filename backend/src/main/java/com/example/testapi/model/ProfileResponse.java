@@ -5,6 +5,7 @@ public class ProfileResponse {
     private String email;
     private String displayName;
     private byte[] photo; // may be null
+    private String userType; // STUDENT or TUTOR
 
     public String getUid() {
         return uid;
@@ -36,5 +37,13 @@ public class ProfileResponse {
 
     public void setPhoto(byte[] photo) {
         this.photo = photo;
+    }
+
+    public String getUserType() {
+        return userType;
+    }
+
+    public void setUserType(String userType) {
+        this.userType = userType;
     }
 }
