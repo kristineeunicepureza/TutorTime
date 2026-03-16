@@ -1,128 +1,125 @@
-// ── String helpers ────────────────────────────────────────────────
-export function getFirstName(name = '') {
-  return name.trim().split(/\s+/)[0] || name;
+// ════════════════════════════════════════════════════════════════════
+// UTILITY FUNCTIONS
+// ════════════════════════════════════════════════════════════════════
+
+export function getFirstName(fullName) {
+  if (!fullName) return 'there';
+  return fullName.split(' ')[0];
 }
 
-export function getInitials(name = '') {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
+export function getInitials(fullName) {
+  if (!fullName) return '?';
+  const parts = fullName.trim().split(' ');
   if (parts.length === 1) return parts[0][0].toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-// ── Stats ─────────────────────────────────────────────────────────
-export function calculateStats(upcomingBookings = [], pastBookings = []) {
-  const activeUpcoming = upcomingBookings.filter(b => b.status !== 'CANCELLED');
-  const completed = pastBookings.filter(b => b.status === 'COMPLETED');
-  const cancelled = pastBookings.filter(b => b.status === 'CANCELLED')
-    .concat(upcomingBookings.filter(b => b.status === 'CANCELLED'));
-
+// Calculate stats dynamically from actual booking data
+export function calculateStats(upcomingBookings, pastBookings) {
+  const totalBooked = upcomingBookings.length + pastBookings.length;
+  const completedBookings = pastBookings.filter(b => b.status === 'COMPLETED');
+  const hoursPerSession = 1.5; // Assume 1.5 hours per session
+  const totalHours = Math.round(completedBookings.length * hoursPerSession * 10) / 10;
+  
   return [
-    {
-      icon: '📅',
-      colorClass: 'blue',
-      value: activeUpcoming.length,
-      label: 'Upcoming Sessions',
-      delta: activeUpcoming.length > 0 ? `${activeUpcoming.length} scheduled` : 'None scheduled',
+    { 
+      label: 'Sessions Booked', 
+      value: totalBooked, 
+      delta: `${upcomingBookings.length} upcoming`, 
+      icon: '📅', 
+      colorClass: 'stat-blue' 
     },
-    {
-      icon: '✅',
-      colorClass: 'green',
-      value: completed.length,
-      label: 'Sessions Completed',
-      delta: completed.length > 0 ? 'All time' : 'No sessions yet',
+    { 
+      label: 'Hours Learned', 
+      value: `${totalHours}h`, 
+      delta: `${completedBookings.length} completed`, 
+      icon: '⏱️', 
+      colorClass: 'stat-green' 
     },
-    {
-      icon: '🔍',
-      colorClass: 'purple',
-      value: upcomingBookings.length + pastBookings.length,
-      label: 'Total Bookings',
-      delta: 'All time',
+    { 
+      label: 'Active Bookings', 
+      value: upcomingBookings.filter(b => b.status !== 'CANCELLED').length, 
+      delta: `${pastBookings.filter(b => b.status === 'CANCELLED').length} cancelled`, 
+      icon: '👥', 
+      colorClass: 'stat-amber' 
     },
-    {
-      icon: '❌',
-      colorClass: 'orange',
-      value: cancelled.length,
-      label: 'Cancelled',
-      delta: cancelled.length > 0 ? 'All time' : 'None cancelled',
+    { 
+      label: 'Upcoming Sessions', 
+      value: upcomingBookings.length, 
+      delta: upcomingBookings.length > 0 ? `Next: ${upcomingBookings[0]?.time || 'TBD'}` : 'None scheduled', 
+      icon: '🔔', 
+      colorClass: 'stat-purple' 
     },
   ];
 }
 
-// ── Notifications ─────────────────────────────────────────────────
-let _notifCounter = Date.now();
-
-export function createNotification(booking, type) {
-  const tutorName = booking.tutor || 'your tutor';
-  const date = booking.date || '';
-  const time = booking.time || '';
-  const dateStr = date && time ? ` on ${date} at ${time}` : date ? ` on ${date}` : '';
-
-  const text =
-    type === 'booked'
-      ? `Session booked with ${tutorName}${dateStr}.`
-      : `Session with ${tutorName}${dateStr} was cancelled.`;
-
+// Create a new notification from a booking event
+export function createNotification(booking, type = 'booked') {
+  const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const messages = {
+    booked: `Session with ${booking.tutor} booked for ${booking.date} at ${booking.time}`,
+    cancelled: `Your session with ${booking.tutor} on ${booking.date} has been cancelled`,
+    updated: `Session with ${booking.tutor} updated to ${booking.date} at ${booking.time}`,
+  };
   return {
-    id: ++_notifCounter,
-    text,
-    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    id: Date.now(),
+    text: messages[type] || messages.booked,
+    time: 'now',
     read: false,
+    timestamp,
   };
 }
 
-// ── Normalizers ───────────────────────────────────────────────────
-export function normalizeTutor(raw = {}) {
-  const name =
-    raw.name ||
-    [raw.firstName, raw.lastName].filter(Boolean).join(' ') ||
-    'Unknown Tutor';
-
-  const subject =
-    raw.subject ||
-    (Array.isArray(raw.subjects) ? raw.subjects[0] : raw.subjects) ||
-    'General';
+// Normalize tutor data from backend
+export function normalizeTutor(t) {
+  const approval = (t.approvalStatus || t.status || '').toString().toUpperCase();
+  const isVerified = t.verified === true || t.isVerified === true || approval === 'APPROVED';
 
   return {
-    id: raw.id ?? raw._id ?? Math.random(),
-    name,
-    subject,
-    rating: raw.rating ?? raw.averageRating ?? 0,
-    sessions: raw.sessions ?? raw.sessionsCompleted ?? raw.totalSessions ?? 0,
-    avatar: getInitials(name),
-    tags: Array.isArray(raw.tags) ? raw.tags : (raw.subjects ? [...(Array.isArray(raw.subjects) ? raw.subjects : [raw.subjects])] : [subject]),
-    rate: raw.rate ?? raw.hourlyRate ?? raw.price ?? 'N/A',
-    location: raw.location ?? raw.meetingLocation ?? 'Online',
-    responseTime: raw.responseTime ?? raw.replyTime ?? 'within 24h',
-    verified: raw.verified ?? raw.isVerified ?? false,
-    bio: raw.bio ?? raw.description ?? raw.about ?? '',
-    availability: Array.isArray(raw.availability) ? raw.availability : [],
-    reviews: Array.isArray(raw.reviews) ? raw.reviews : [],
+    ...t,
+    avatar: t.avatarInitials || getInitials(t.name),
+    tags: Array.isArray(t.tags) ? t.tags : (t.tags ? t.tags.split(',').map(s => s.trim()) : []),
+    availability: Array.isArray(t.availability) ? t.availability : (t.availability ? t.availability.split(',').map(s => s.trim()) : []),
+    reviews: Array.isArray(t.reviews) ? t.reviews : [],
+    verified: isVerified,
   };
 }
 
-export function normalizeBooking(raw = {}) {
-  const tutorName =
-    raw.tutorName ||
-    (raw.tutor && typeof raw.tutor === 'object'
-      ? raw.tutor.name || [raw.tutor.firstName, raw.tutor.lastName].filter(Boolean).join(' ')
-      : raw.tutor) ||
-    'Unknown Tutor';
-
-  const subject =
-    raw.subject ||
-    (raw.tutor && typeof raw.tutor === 'object' ? raw.tutor.subject : '') ||
-    'General';
-
+// Normalize booking data from backend
+export function normalizeBooking(b) {
   return {
-    id: raw.id ?? raw._id ?? Math.random(),
-    tutor: tutorName,
-    subject,
-    date: raw.date ?? raw.sessionDate ?? '',
-    time: raw.time ?? raw.startTime ?? raw.sessionTime ?? '',
-    location: raw.location ?? (raw.tutor && typeof raw.tutor === 'object' ? raw.tutor.location : '') ?? 'Online',
-    status: raw.status ?? 'PENDING',
-    notes: raw.notes ?? raw.message ?? '',
-    avatar: getInitials(tutorName),
+    ...b,
+    status: (b.status || 'UNKNOWN').toString().toUpperCase(),
+    tutor: b.tutorName,
+    avatar: b.avatarInitials || getInitials(b.tutorName || ''),
+    date: b.date ? new Date(b.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
   };
+}
+
+// Calculate session statistics for profile
+export function calculateSessionStats(upcomingBookings, pastBookings) {
+  const totalBooked = upcomingBookings.length + pastBookings.length;
+  const completedBookings = pastBookings.filter(b => b.status === 'COMPLETED');
+  const cancelledBookings = [...upcomingBookings, ...pastBookings].filter(b => b.status === 'CANCELLED');
+  const hoursPerSession = 1.5; // Assume 1.5 hours per session
+  const totalHours = Math.round(completedBookings.length * hoursPerSession * 10) / 10;
+  
+  // Calculate favourite subject (most frequently booked)
+  const subjectCounts = {};
+  [...upcomingBookings, ...pastBookings].forEach(b => {
+    if (b.subject) {
+      subjectCounts[b.subject] = (subjectCounts[b.subject] || 0) + 1;
+    }
+  });
+  const favouriteSubject = Object.keys(subjectCounts).length > 0 
+    ? Object.keys(subjectCounts).reduce((a, b) => subjectCounts[a] > subjectCounts[b] ? a : b)
+    : 'None yet';
+
+  return [
+    { label: 'Total Sessions Booked', value: totalBooked.toString() },
+    { label: 'Sessions Completed', value: completedBookings.length.toString() },
+    { label: 'Sessions Cancelled', value: cancelledBookings.length.toString() },
+    { label: 'Total Hours Learned', value: `${totalHours} hrs` },
+    { label: 'Favourite Subject', value: favouriteSubject },
+  ];
 }

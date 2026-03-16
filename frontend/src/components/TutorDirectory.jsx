@@ -1,6 +1,6 @@
 import { Avatar } from './Avatar';
 
-export function TutorDirectory({ tutors, tutorsLoading, searchQuery, setSearchQuery, onViewProfile, onContactTutor }) {
+export function TutorDirectory({ tutors, tutorsLoading, searchQuery, setSearchQuery, onViewProfile }) {
   const filtered = tutors.filter(t =>
     !searchQuery ||
     t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -54,7 +54,6 @@ export function TutorDirectory({ tutors, tutorsLoading, searchQuery, setSearchQu
                 </div>
                 <div className="tutor-card-actions">
                   <button className="btn-primary" onClick={() => onViewProfile(t)}>View Profile</button>
-                  <button className="btn-ghost" onClick={() => onContactTutor(t)}>Contact Tutor</button>
                 </div>
               </div>
             </div>

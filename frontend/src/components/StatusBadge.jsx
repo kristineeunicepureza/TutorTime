@@ -1,3 +1,4 @@
 export function StatusBadge({ status }) {
-  return <span className={`badge badge-${status.toLowerCase()}`}>{status}</span>;
+  const normalizedStatus = (status || 'UNKNOWN').toString().trim().toUpperCase();
+  return <span className={`badge badge-${normalizedStatus.toLowerCase()}`}>{normalizedStatus}</span>;
 }

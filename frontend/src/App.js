@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import Login from './Login';
 import SignUp from './SignUp';
-import TutorTimeDashboard from './TutorTimeDashboard';
+import StudentDashboard from './StudentDashboard';
+import TutorDashboard from './TutorDashboard';
+import AdminDashboard from './AdminDashboard';
 import './App.css';
 
 function App() {
@@ -12,26 +14,45 @@ function App() {
   const switchToSignUp = () => setCurrentView('signup');
   const switchToLogin = () => setCurrentView('login');
 
-  // ✅ ADDED: called by Login on success — receives email + display name from API
-  const handleLoginSuccess = (email, displayName) => {
+  // ✅ FIXED: called by Login on success — now ensures role is uppercase
+  const handleLoginSuccess = (email, displayName, userRole) => {
     const name = displayName || email.split('@')[0];
-    const role = localStorage.getItem('userRole') || 'Student';
+    const role = (userRole || 'STUDENT').toUpperCase();
+    localStorage.setItem('userName', name);
+    localStorage.setItem('userEmail', email);
+    localStorage.setItem('userRole', role);
     setCurrentUser({ name, email, role });
     setCurrentView('dashboard');
   };
 
-  // ✅ ADDED: called by SignUp on success — receives email + full name typed by user
-  const handleSignUpSuccess = (email, fullName) => {
-    const role = localStorage.getItem('userRole') || 'Student';
-    setCurrentUser({ name: fullName, email, role });
+  // ✅ FIXED: called by SignUp on success — now receives role
+  const handleSignUpSuccess = (email, fullName, department, yearLevel, role) => {
+    const userRole = (role || 'STUDENT').toUpperCase();
+    localStorage.setItem('userName', fullName);
+    localStorage.setItem('userEmail', email);
+    localStorage.setItem('userDepartment', department);
+    localStorage.setItem('userYearLevel', yearLevel);
+    localStorage.setItem('userRole', userRole);
+    setCurrentUser({ name: fullName, email, role: userRole });
     setCurrentView('dashboard');
   };
 
-  // ✅ ADDED: log out and return to login
-  const handleLogout = () => {
-    setCurrentUser(null);
-    localStorage.removeItem('userRole');
-    setCurrentView('login');
+
+
+  // ✅ Route to correct dashboard based on user role
+  const renderDashboard = () => {
+    if (!currentUser) return null;
+
+    const role = currentUser.role?.toUpperCase();
+    
+    if (role === 'ADMIN') {
+      return <AdminDashboard />;
+    } else if (role === 'TUTOR') {
+      return <TutorDashboard />;
+    } else {
+      // Default to STUDENT
+      return <StudentDashboard />;
+    }
   };
 
   return (
@@ -48,9 +69,7 @@ function App() {
           onSignUpSuccess={handleSignUpSuccess}
         />
       )}
-      {currentView === 'dashboard' && currentUser && (
-        <TutorTimeDashboard user={currentUser} onLogout={handleLogout} />
-      )}
+      {currentView === 'dashboard' && currentUser && renderDashboard()}
     </div>
   );
 }

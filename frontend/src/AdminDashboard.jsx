@@ -36,6 +36,16 @@ function AdminDashboard() {
   const userInitials = getInitials(displayName);
   const unreadCount = notifications.filter(n => !n.read).length;
 
+  const getTutorId = (tutor) => tutor?.tutorId ?? tutor?.id;
+
+  const extractTutorList = (payload) => {
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.data)) return payload.data;
+    if (Array.isArray(payload?.pendingTutors)) return payload.pendingTutors;
+    if (Array.isArray(payload?.tutors)) return payload.tutors;
+    return [];
+  };
+
   // ── Fetch pending tutor verification requests ──────────────────────
   useEffect(() => {
     const token = localStorage.getItem('authToken');
@@ -45,7 +55,7 @@ function AdminDashboard() {
     })
       .then(r => r.json())
       .then(data => {
-        setPendingTutors(Array.isArray(data.data) ? data.data : []);
+        setPendingTutors(extractTutorList(data));
         setTutorsLoading(false);
       })
       .catch(() => setTutorsLoading(false));
@@ -126,7 +136,7 @@ function AdminDashboard() {
       });
       const data = await res.json();
       if (data.success) {
-        setPendingTutors(prev => prev.filter(t => t.tutorId !== tutorId));
+        setPendingTutors(prev => prev.filter(t => getTutorId(t) !== tutorId));
         alert('✅ Tutor approved successfully!');
       } else {
         alert('❌ ' + data.message);
@@ -150,7 +160,7 @@ function AdminDashboard() {
       });
       const data = await res.json();
       if (data.success) {
-        setPendingTutors(prev => prev.filter(t => t.tutorId !== tutorId));
+        setPendingTutors(prev => prev.filter(t => getTutorId(t) !== tutorId));
         alert('❌ Tutor rejected.');
       } else {
         alert('Error: ' + data.message);
@@ -279,7 +289,7 @@ function AdminDashboard() {
             ) : (
               <div style={{ display: 'grid', gap: '12px' }}>
                 {pendingTutors.map(tutor => (
-                  <div key={tutor.tutorId} style={{
+                  <div key={getTutorId(tutor) || tutor.email} style={{
                     padding: '16px',
                     border: '1px solid var(--border)',
                     borderRadius: '8px',
@@ -306,14 +316,14 @@ function AdminDashboard() {
                       </button>
                       <button
                         className="btn-primary"
-                        onClick={() => handleApproveTutor(tutor.tutorId)}
+                        onClick={() => handleApproveTutor(getTutorId(tutor))}
                         style={{ background: 'var(--success)', padding: '8px 16px', fontSize: '13px' }}
                       >
                         ✓ Approve
                       </button>
                       <button
                         className="btn-primary"
-                        onClick={() => handleRejectTutor(tutor.tutorId)}
+                        onClick={() => handleRejectTutor(getTutorId(tutor))}
                         style={{ background: 'var(--error)', padding: '8px 16px', fontSize: '13px' }}
                       >
                         ✕ Reject
@@ -597,7 +607,7 @@ function AdminDashboard() {
                 className="btn-primary"
                 onClick={() => {
                   setTutorDetailModalOpen(false);
-                  handleApproveTutor(selectedTutor.tutorId);
+                  handleApproveTutor(getTutorId(selectedTutor));
                 }}
                 style={{ background: 'var(--success)' }}
               >

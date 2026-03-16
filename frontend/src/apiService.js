@@ -49,13 +49,14 @@ const makeRequest = async (endpoint, options = {}) => {
  * Register a new user account
  * POST /api/register
  */
-export const registerUser = async (email, password, displayName) => {
+export const registerUser = async (email, password, displayName, role) => {
   return makeRequest('/register', {
     method: 'POST',
     body: JSON.stringify({
       email,
       password,
       displayName,
+      role,
     }),
   });
 };

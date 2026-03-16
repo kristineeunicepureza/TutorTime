@@ -1,6 +1,6 @@
 import { Avatar } from './Avatar';
 
-export function TutorProfile({ tutor, onBack, onContactTutor, onBookSession }) {
+export function TutorProfile({ tutor, onBack, onBookSession }) {
   if (!tutor) return null;
   return (
     <div className="page-content">
@@ -29,8 +29,7 @@ export function TutorProfile({ tutor, onBack, onContactTutor, onBookSession }) {
           </div>
         </div>
         <div className="tutor-profile-actions">
-          <button className="btn-primary" onClick={() => onContactTutor(tutor)}>💬 Contact Tutor</button>
-          <button className="btn-ghost" onClick={() => onBookSession(tutor)}>📅 Book Session</button>
+          <button className="btn-primary" onClick={() => onBookSession(tutor)}>📅 Book Session</button>
         </div>
       </div>
 

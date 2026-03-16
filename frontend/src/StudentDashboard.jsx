@@ -16,7 +16,6 @@ import {
 import { Avatar } from './components/Avatar';
 import { DashboardView } from './components/DashboardView';
 import { TutorProfile } from './components/TutorProfile';
-import { ChatInterface } from './components/ChatInterface';
 import { TutorDirectory } from './components/TutorDirectory';
 import { BookingsManager } from './components/BookingsManager';
 import { ProfileSettings } from './components/ProfileSettings';
@@ -33,13 +32,8 @@ function StudentDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Tutor sub-views
-  const [tutorView, setTutorView] = useState('list'); // 'list' | 'profile' | 'contact'
+  const [tutorView, setTutorView] = useState('list');
   const [selectedTutor, setSelectedTutor] = useState(null);
-
-  // Chat state
-  const [chatInput, setChatInput] = useState('');
-  const [chatMessages, setChatMessages] = useState([]);
-  const chatEndRef = useRef(null);
 
   // Notifications — now dynamic based on events
   const [notifications, setNotifications] = useState([]);
@@ -87,12 +81,6 @@ function StudentDashboard() {
   const firstName = getFirstName(displayName);
   const unreadCount = notifications.filter(n => !n.read).length;
   const stats = calculateStats(upcomingBookings, pastBookings);
-
-  useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [chatMessages]);
 
   // ── Fetch tutors on mount ─────────────────────────────────────────
   useEffect(() => {
@@ -159,34 +147,6 @@ function StudentDashboard() {
     setSelectedTutor(tutor);
     setTutorView('profile');
     setActiveNav('tutors');
-  };
-
-  const handleContactTutor = (tutor) => {
-    setSelectedTutor(tutor);
-    // Init with a greeting message from tutor
-    setChatMessages([
-      {
-        id: 1,
-        sender: 'tutor',
-        text: `Hi there! I'm ${tutor.name}. How can I help you with ${tutor.subject}?`,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      }
-    ]);
-    setChatInput('');
-    setTutorView('contact');
-    setActiveNav('tutors');
-  };
-
-  const handleSendMessage = () => {
-    if (!chatInput.trim()) return;
-    const newMsg = {
-      id: chatMessages.length + 1,
-      sender: 'user',
-      text: chatInput.trim(),
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-    setChatMessages(prev => [...prev, newMsg]);
-    setChatInput('');
   };
 
   const handlePhotoUpload = (e) => {
@@ -302,21 +262,7 @@ function StudentDashboard() {
           <TutorProfile 
             tutor={selectedTutor}
             onBack={() => setTutorView('list')}
-            onContactTutor={handleContactTutor}
             onBookSession={handleBookSession}
-          />
-        );
-      }
-      if (tutorView === 'contact') {
-        return (
-          <ChatInterface 
-            tutor={selectedTutor}
-            chatMessages={chatMessages}
-            chatInput={chatInput}
-            setChatInput={setChatInput}
-            onSendMessage={handleSendMessage}
-            onBack={() => setTutorView('profile')}
-            chatEndRef={chatEndRef}
           />
         );
       }
@@ -327,7 +273,6 @@ function StudentDashboard() {
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           onViewProfile={handleViewProfile}
-          onContactTutor={handleContactTutor}
         />
       );
     }

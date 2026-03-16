@@ -104,18 +104,86 @@ function TutorDashboard() {
     const token = localStorage.getItem('authToken');
     if (!token) { setApprovalStatusLoading(false); return; }
 
-    const fetchApprovalStatus = () => {
-      fetch('http://localhost:8080/api/tutors/profile/my-profile', {
+    const createTutorProfile = async () => {
+      const profilePayload = {
+        name: displayName,
+        subject: savedProfile.subject,
+        specialization: savedProfile.subject,
+        bio: savedProfile.bio,
+        hourlyRate: Number(savedProfile.hourlyRate) || 25,
+        approvalStatus: 'PENDING',
+      };
+
+      // Try both common create endpoints because backend variants differ.
+      const createEndpoints = [
+        'http://localhost:8080/api/tutors/profile',
+        'http://localhost:8080/api/tutors/profile/create',
+      ];
+
+      for (const endpoint of createEndpoints) {
+        try {
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(profilePayload),
+          });
+
+          if (response.ok) {
+            return true;
+          }
+
+          const errData = await response.json().catch(() => ({}));
+          const errText = `${errData?.message || ''} ${errData?.error || ''}`.toLowerCase();
+          if (errText.includes('already exists')) {
+            return true;
+          }
+        } catch {
+          // Try next endpoint variant.
+        }
+      }
+
+      return false;
+    };
+
+    const fetchApprovalStatus = async () => {
+      const profileRes = await fetch('http://localhost:8080/api/tutors/profile/my-profile', {
         headers: { Authorization: `Bearer ${token}` },
-      })
-        .then(r => r.json())
-        .then(data => {
-          if (data.success && data.data && data.data.approvalStatus) {
+      });
+
+      if (profileRes.ok) {
+        const data = await profileRes.json();
+        if (data.success && data.data) {
+          if (data.data.approvalStatus) {
             setApprovalStatus(data.data.approvalStatus);
           }
-          setApprovalStatusLoading(false);
-        })
-        .catch(() => setApprovalStatusLoading(false));
+
+          setSavedProfile(prev => ({
+            ...prev,
+            name: data.data.name || prev.name,
+            subject: data.data.specialization || data.data.subject || prev.subject,
+            bio: data.data.bio || prev.bio,
+            hourlyRate: (data.data.hourlyRate ?? prev.hourlyRate).toString(),
+          }));
+        }
+        setApprovalStatusLoading(false);
+        return;
+      }
+
+      const errData = await profileRes.json().catch(() => ({}));
+      const errText = `${errData?.message || ''} ${errData?.error || ''}`.toLowerCase();
+      const missingProfile = profileRes.status === 404 || errText.includes('tutor profile not found');
+
+      if (missingProfile) {
+        const created = await createTutorProfile();
+        if (created) {
+          setApprovalStatus('PENDING');
+        }
+      }
+
+      setApprovalStatusLoading(false);
     };
 
     fetchApprovalStatus();
@@ -123,7 +191,7 @@ function TutorDashboard() {
     // Refresh approval status every 5 seconds
     const interval = setInterval(fetchApprovalStatus, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [displayName, savedProfile.bio, savedProfile.hourlyRate, savedProfile.subject]);
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '⊞' },
@@ -156,15 +224,25 @@ function TutorDashboard() {
     }
     const token = localStorage.getItem('authToken');
     try {
+      const availabilityPayload = {
+        ...availabilityForm,
+        recurringWeekly: availabilityForm.isRecurring,
+      };
+
       const res = await fetch('http://localhost:8080/api/availability', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(availabilityForm),
+        body: JSON.stringify(availabilityPayload),
       });
-      if (!res.ok) throw new Error('Failed');
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData?.message || errData?.error || 'Failed to add availability');
+      }
+
       const newSlot = await res.json();
       setAvailableSlots(prev => [newSlot, ...prev]);
       setAvailabilityModalOpen(false);
@@ -176,8 +254,8 @@ function TutorDashboard() {
         isRecurring: true,
       });
       alert('Availability added successfully!');
-    } catch {
-      alert('Failed to add availability. Please try again.');
+    } catch (error) {
+      alert(error.message || 'Failed to add availability. Please try again.');
     }
   };
 
@@ -564,7 +642,11 @@ function TutorDashboard() {
               <div className="profile-hero-email">{userEmail}</div>
               <div className="profile-hero-badges">
                 <span className="tag">{savedProfile.subject}</span>
-                <span className="badge-verified">✓ Verified Tutor</span>
+                <span className="badge-verified">
+                  {approvalStatus === 'APPROVED' ? '✓ Verified Tutor' :
+                   approvalStatus === 'REJECTED' ? '✕ Not Approved' :
+                   '⏳ Pending Approval'}
+                </span>
               </div>
               <p className="photo-hint">Click your photo to update it</p>
             </div>
