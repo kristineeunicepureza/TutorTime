@@ -78,7 +78,7 @@ public class AuthController {
 
     @PostMapping("/register")
     public com.example.testapi.model.AuthResponse register(@RequestBody com.example.testapi.model.RegisterRequest request) {
-        return authService.register(request.getEmail(), request.getPassword(), request.getDisplayName());
+        return authService.register(request.getEmail(), request.getPassword(), request.getDisplayName(), request.getUserType());
     }
 
     @GetMapping("/profile")
