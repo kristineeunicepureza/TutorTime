@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- res/drawable/bg_error_box.xml -->
+<!-- Mimics: background #fef2f2, border-left 4px solid #dc2626, border-radius 8dp -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Full background -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#FEF2F2" />
+            <corners android:radius="8dp" />
+        </shape>
+    </item>
+
+    <!-- Left red accent bar (4dp wide) -->
+    <item android:right="396dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#DC2626" />
+            <corners
+                android:topLeftRadius="8dp"
+                android:bottomLeftRadius="8dp" />
+        </shape>
+    </item>
+
+</layer-list>

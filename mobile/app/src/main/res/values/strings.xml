@@ -1,0 +1,46 @@
+<resources>
+    <string name="app_name">TutorTime</string>
+
+    <!-- Login Screen -->
+    <string name="welcome_back">Welcome Back</string>
+    <string name="login_subtitle">Sign in to access your campus tutoring network</string>
+    <string name="label_username">Username</string>
+    <string name="hint_username">Enter your username</string>
+    <string name="label_password">Password</string>
+    <string name="hint_password">Enter your password</string>
+    <string name="btn_sign_in">Sign In</string>
+    <string name="hint_credentials">Hint: student / password123</string>
+    <string name="no_account">Don\'t have an account? </string>
+    <string name="sign_up">Sign Up</string>
+    <string name="logo_description">TutorTime Logo</string>
+
+    <!-- Sign Up Screen -->
+    <string name="create_account">Create Account</string>
+    <string name="signup_subtitle">Join the peer-to-peer tutoring community</string>
+    <string name="label_full_name">Full Name</string>
+    <string name="hint_full_name">Enter your full name</string>
+    <string name="label_email">University Email</string>
+    <string name="hint_email">yourname@university.edu</string>
+    <string name="hint_password_min">At least 6 characters</string>
+    <string name="label_confirm_password">Confirm Password</string>
+    <string name="hint_confirm_password">Re-enter your password</string>
+    <string name="label_role">Role</string>
+    <string name="btn_sign_up">Sign Up</string>
+    <string name="already_account">Already have an account? </string>
+    <string name="log_in">Log In</string>
+    <string name="dashboard_greeting">%1$s, %2$s 👋</string>
+    <string name="dashboard_subtitle">Here\'s what\'s happening today</string>
+    <string name="greeting_morning">Good morning</string>
+    <string name="greeting_afternoon">Good afternoon</string>
+    <string name="greeting_evening">Good evening</string>
+    <string name="default_name">there</string>
+
+    <!-- Home Screen -->
+    <string name="tutor_time_title">TutorTime</string>
+    <string name="get_started">Get Started</string>
+    <string name="tip_browse">Browse available tutors by subject</string>
+    <string name="tip_book">Book a face-to-face session on campus</string>
+    <string name="tip_track">Track your upcoming and past sessions</string>
+    <string name="label_upcoming">Upcoming</string>
+    <string name="label_completed">Completed</string>
+</resources>

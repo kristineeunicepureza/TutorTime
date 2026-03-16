@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- res/drawable/bg_avatar_sm.xml -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <gradient
+        android:startColor="#0047AB"
+        android:endColor="#1A6DD4"
+        android:angle="135"
+        android:type="linear" />
+</shape>

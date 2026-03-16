@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- res/drawable/bg_role_card_selected.xml -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#0047AB" />
+    <stroke
+        android:width="1.5dp"
+        android:color="#0047AB" />
+    <corners android:radius="10dp" />
+</shape>

@@ -1,0 +1,8 @@
+<resources>
+    <style name="Theme.TutorTime" parent="Theme.AppCompat.Light.NoActionBar">
+        <!-- Primary brand color -->
+        <item name="colorPrimary">#0047AB</item>
+        <item name="colorPrimaryDark">#003080</item>
+        <item name="colorAccent">#10B981</item>
+    </style>
+</resources>

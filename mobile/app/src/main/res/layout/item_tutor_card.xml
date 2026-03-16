@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- res/layout/item_tutor_card.xml -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_card"
+    android:padding="16dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:layout_margin="6dp">
+
+    <!-- Top row: avatar + name + rating -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="12dp">
+
+        <!-- Avatar -->
+        <FrameLayout
+            android:layout_width="46dp"
+            android:layout_height="46dp"
+            android:layout_marginEnd="12dp">
+            <View android:layout_width="46dp" android:layout_height="46dp"
+                android:background="@drawable/bg_avatar" />
+            <TextView android:id="@+id/tvTutorInitial"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_gravity="center" android:text="A"
+                android:textColor="#FFFFFF" android:textSize="16sp" android:textStyle="bold" />
+        </FrameLayout>
+
+        <!-- Name + subject -->
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical">
+            <TextView android:id="@+id/tvTutorName"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Ana Santos" android:textColor="#111827" android:textSize="15sp"
+                android:textStyle="bold" />
+            <TextView android:id="@+id/tvTutorSubject"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="MATHEMATICS" android:textColor="#0047AB" android:textSize="11sp"
+                android:textStyle="bold" android:letterSpacing="0.04"
+                android:layout_marginTop="2dp" />
+        </LinearLayout>
+
+        <!-- Rating -->
+        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:orientation="vertical" android:gravity="end">
+            <TextView android:id="@+id/tvRating"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="⭐ 4.9" android:textColor="#F59E0B" android:textSize="14sp"
+                android:textStyle="bold" />
+            <TextView android:id="@+id/tvRatingCount"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="48 sessions" android:textColor="#6B7280" android:textSize="11sp"
+                android:layout_marginTop="2dp" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Tags row -->
+    <LinearLayout
+        android:id="@+id/tagRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="12dp" />
+
+    <!-- Action buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnBook"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:text="Book Session"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:background="@drawable/bg_btn_primary"
+            android:stateListAnimator="@null"
+            android:layout_marginEnd="6dp" />
+
+        <Button
+            android:id="@+id/btnView"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="View"
+            android:textColor="#0047AB"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:background="@drawable/bg_btn_ghost"
+            android:stateListAnimator="@null" />
+
+    </LinearLayout>
+
+</LinearLayout>
