@@ -10,4 +10,5 @@ import com.example.testapi.entity.TutorProfile;
 @Repository
 public interface TutorProfileRepository extends JpaRepository<TutorProfile, String> {
     Optional<TutorProfile> findByUserId(String userId);
+    long countByApprovalStatus(String approvalStatus);
 }

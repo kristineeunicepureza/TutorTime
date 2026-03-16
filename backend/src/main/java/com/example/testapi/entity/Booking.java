@@ -51,6 +51,9 @@ public class Booking {
 
     @PrePersist
     protected void onCreate() {
+        if (bookingStatus == null || bookingStatus.isBlank()) {
+            bookingStatus = "CONFIRMED";
+        }
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
@@ -87,6 +90,10 @@ public class Booking {
 
     public String getBookingStatus() { return bookingStatus; }
     public void setBookingStatus(String bookingStatus) { this.bookingStatus = bookingStatus; }
+
+    // Compatibility alias for frontend components that read `status`
+    public String getStatus() { return bookingStatus; }
+    public void setStatus(String status) { this.bookingStatus = status; }
 
     public String getCancellationReason() { return cancellationReason; }
     public void setCancellationReason(String reason) { this.cancellationReason = reason; }

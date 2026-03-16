@@ -1,11 +1,13 @@
 package com.example.testapi.service;
 
-import com.example.testapi.entity.Notification;
-import com.example.testapi.repository.NotificationRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.example.testapi.entity.Notification;
+import com.example.testapi.repository.NotificationRepository;
 
 @Service
 public class NotificationService {
@@ -33,6 +35,18 @@ public class NotificationService {
         Notification notification = new Notification();
         notification.setUserId(tutorUserId);
         notification.setType("TUTOR_APPROVED");
+        notification.setMessage(message);
+        notification.setIsRead(false);
+        notificationRepository.save(notification);
+    }
+
+    /**
+     * Send tutor rejection notification
+     */
+    public void sendRejectionNotification(String tutorUserId, String message) {
+        Notification notification = new Notification();
+        notification.setUserId(tutorUserId);
+        notification.setType("TUTOR_REJECTED");
         notification.setMessage(message);
         notification.setIsRead(false);
         notificationRepository.save(notification);

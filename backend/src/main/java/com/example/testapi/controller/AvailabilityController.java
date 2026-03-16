@@ -121,9 +121,9 @@ public class AvailabilityController {
             @RequestHeader("Authorization") String authorization) throws Exception {
         
         String token = authService.extractToken(authorization);
-        authService.verifyTokenAndGetUid(token);
+        String uid = authService.verifyTokenAndGetUid(token);
         
-        boolean deleted = availabilityService.deleteAvailability(id);
+        boolean deleted = availabilityService.deleteAvailability(id, uid);
         
         if (deleted) {
             return Map.of("success", "true", "message", "Availability deleted");

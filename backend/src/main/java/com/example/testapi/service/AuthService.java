@@ -15,13 +15,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
-import com.example.testapi.entity.User;
 import com.example.testapi.entity.TutorProfile;
+import com.example.testapi.entity.User;
 import com.example.testapi.model.AuthResponse;
 import com.example.testapi.model.EditProfileRequest;
 import com.example.testapi.model.ProfileResponse;
-import com.example.testapi.repository.UserRepository;
 import com.example.testapi.repository.TutorProfileRepository;
+import com.example.testapi.repository.UserRepository;
 
 @Service
 public class AuthService {
@@ -112,11 +112,11 @@ public class AuthService {
                             }
 
                             // Ensure Supabase profiles are synced
-                            syncSupabaseProfiles(uid, userInfo.getRole());
+                            syncSupabaseProfiles(uid, userInfo.getRole(), email);
                         } else {
                             System.out.println("❌ Could not determine role, defaulting to STUDENT");
                             userInfo = new AuthResponse.UserInfo("User", "STUDENT");
-                            syncSupabaseProfiles(uid, "STUDENT");
+                            syncSupabaseProfiles(uid, "STUDENT", email);
                         }
                     }
 
@@ -204,9 +204,31 @@ public class AuthService {
      * Accepts userType (STUDENT or TUTOR) to properly configure the account.
      */
     public AuthResponse register(String email, String password, String fullName, String userType) {
-        // Default to STUDENT if userType not provided
+        if (email == null || email.isBlank()) {
+            return new AuthResponse(false, "Registration failed: email is required", null);
+        }
+        String normalizedEmail = email.trim().toLowerCase();
+
+        if (password == null || password.isBlank()) {
+            return new AuthResponse(false, "Registration failed: password is required", null);
+        }
+
+        if (fullName == null || fullName.isBlank()) {
+            return new AuthResponse(false, "Registration failed: displayName or fullName is required", null);
+        }
+        fullName = fullName.trim();
+
+        // Prevent re-registering an existing account, which can look like auto-approval
+        if (userRepository.existsByEmail(normalizedEmail)) {
+            return new AuthResponse(false, "Email is already registered. Please log in instead.", null);
+        }
+        String existingSupabaseUid = lookupSupabaseUidByEmail(normalizedEmail);
+        if (existingSupabaseUid != null) {
+            return new AuthResponse(false, "Email is already registered. Please log in instead.", null);
+        }
+
         if (userType == null || userType.isBlank()) {
-            userType = "STUDENT";
+            return new AuthResponse(false, "Registration failed: userType (or role) is required and must be STUDENT or TUTOR", null);
         }
         userType = userType.toUpperCase();
         
@@ -219,7 +241,7 @@ public class AuthService {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("apikey", apiKey);
-        Map<String, String> payload = Map.of("email", email, "password", password);
+        Map<String, String> payload = Map.of("email", normalizedEmail, "password", password);
         HttpEntity<Map<String, String>> entity = new HttpEntity<>(payload, headers);
         try {
             Map<String, Object> response = restTemplate.postForObject(url, entity, Map.class);
@@ -229,13 +251,13 @@ public class AuthService {
                 Map<String, Object> userMap = (Map<String, Object>) response.get("user");
                 String uid = userMap.get("id").toString();
                 
-                // Save user to Supabase via REST API
-                saveUserToSupabase(uid, email, fullName, userType);
+                // Save user to Supabase via REST API; returns the canonical UID (may differ on email conflict)
+                String resolvedUid = saveUserToSupabase(uid, normalizedEmail, fullName, userType);
 
                 // Also save to local H2 for offline support
                 User user = new User();
-                user.setId(uid);
-                user.setEmail(email);
+                user.setId(resolvedUid);
+                user.setEmail(normalizedEmail);
                 user.setFullName(fullName);
                 user.setPasswordHash(password);
                 user.setRole(userType);
@@ -245,7 +267,7 @@ public class AuthService {
                 // If registering as TUTOR, create TutorProfile locally
                 if (userType.equals("TUTOR")) {
                     TutorProfile tutorProfile = new TutorProfile();
-                    tutorProfile.setUserId(uid);
+                    tutorProfile.setUserId(resolvedUid);
                     tutorProfile.setApprovalStatus("PENDING");
                     tutorProfile.setRating(0.0);
                     tutorProfileRepository.save(tutorProfile);
@@ -254,8 +276,8 @@ public class AuthService {
                     System.out.println("📋 Tutor profile created with PENDING status. Admin approval required.");
                 } else {
                     // If registering as STUDENT, create StudentProfile in Supabase
-                    saveStudentProfileToSupabase(uid);
-                    System.out.println("✓ Student profile created for: " + email);
+                    saveStudentProfileToSupabase(resolvedUid);
+                    System.out.println("✓ Student profile created for: " + normalizedEmail);
                 }
 
                 Object token = response.get("access_token");
@@ -282,9 +304,11 @@ public class AuthService {
     }
 
     /**
-     * Save user to Supabase PostgreSQL database via REST API
+     * Save user to Supabase PostgreSQL database via REST API.
+     * Returns the canonical UID: either the passed-in uid on success, or the existing
+     * UID already stored in Supabase if the email was already registered.
      */
-    private void saveUserToSupabase(String uid, String email, String fullName, String userType) {
+    private String saveUserToSupabase(String uid, String email, String fullName, String userType) {
         try {
             String url = supabaseUrl + "/rest/v1/users";
             HttpHeaders headers = new HttpHeaders();
@@ -303,10 +327,49 @@ public class AuthService {
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(userPayload, headers);
             restTemplate.postForObject(url, entity, Map.class);
             System.out.println("✓ User saved to Supabase: " + email);
+            return uid;
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode().value() == 409) {
+                // Email or ID conflict — look up the canonical UID already in Supabase
+                String existingUid = lookupSupabaseUidByEmail(email);
+                if (existingUid != null) {
+                    System.out.println("⚠ User already in Supabase (UID: " + existingUid + "), using existing record");
+                    return existingUid;
+                }
+            }
+            System.out.println("⚠ Failed to save to Supabase: " + e.getMessage());
         } catch (Exception e) {
             System.out.println("⚠ Failed to save to Supabase: " + e.getMessage());
-            // Don't fail registration if Supabase write fails
         }
+        return uid;
+    }
+
+    /**
+     * Look up a user's ID in the Supabase public users table by email.
+     * Returns null if not found.
+     */
+    private String lookupSupabaseUidByEmail(String email) {
+        try {
+            String url = supabaseUrl + "/rest/v1/users?email=eq." + email + "&select=id";
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("apikey", apiKey);
+            headers.set("Accept", "application/json");
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+            ResponseEntity<String> response = restTemplate.exchange(
+                url, org.springframework.http.HttpMethod.GET, entity, String.class);
+            String body = response.getBody();
+            if (body != null && !body.equals("[]")) {
+                int idIdx = body.indexOf("\"id\"");
+                if (idIdx != -1) {
+                    int start = body.indexOf("\"", idIdx + 4) + 1;
+                    int end = body.indexOf("\"", start);
+                    return body.substring(start, end);
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("⚠ Failed to look up Supabase UID by email: " + e.getMessage());
+        }
+        return null;
     }
 
     /**
@@ -346,6 +409,8 @@ public class AuthService {
             headers.set("apikey", apiKey);
             headers.set("Prefer", "return=minimal");
 
+            headers.set("Prefer", "resolution=ignore-duplicates,return=minimal");
+
             Map<String, Object> studentPayload = new HashMap<>();
             studentPayload.put("user_id", userId);
             studentPayload.put("department", "Not Specified");
@@ -362,17 +427,27 @@ public class AuthService {
     }
 
     /**
-     * Sync user profiles to Supabase based on role (idempotent - safe to call multiple times)
+     * Sync user profiles to Supabase based on role (idempotent - safe to call multiple times).
+     * Accepts email so the canonical Supabase UID can be resolved when the auth UID
+     * differs from the UID already stored in the public users table.
      */
-    private void syncSupabaseProfiles(String userId, String role) {
+    private void syncSupabaseProfiles(String userId, String role, String email) {
         if ("TUTOR".equals(role)) {
-            // For tutors, profile is created locally only
-            // Supabase tutor_profiles requires subject_id, which tutors set up later
             System.out.println("✓ Tutor synced - subject can be added later via profile settings");
+        } else if ("ADMIN".equals(role)) {
+            System.out.println("✓ Admin synced - no student profile needed");
         } else {
+            // Resolve the canonical UID from Supabase public users table to avoid FK violations
+            String canonicalUid = userId;
+            if (email != null) {
+                String lookedUp = lookupSupabaseUidByEmail(email);
+                if (lookedUp != null) {
+                    canonicalUid = lookedUp;
+                }
+            }
             // Check if student profile exists, if not create it
             try {
-                String checkUrl = supabaseUrl + "/rest/v1/student_profiles?user_id=eq." + userId + "&select=id";
+                String checkUrl = supabaseUrl + "/rest/v1/student_profiles?user_id=eq." + canonicalUid + "&select=id";
                 HttpHeaders headers = new HttpHeaders();
                 headers.set("apikey", apiKey);
                 headers.set("Accept", "application/json");
@@ -386,14 +461,12 @@ public class AuthService {
                 );
 
                 String responseBody = response.getBody();
-                // If empty array (no records), create one
                 if (responseBody != null && responseBody.equals("[]")) {
-                    saveStudentProfileToSupabase(userId);
+                    saveStudentProfileToSupabase(canonicalUid);
                 }
             } catch (Exception e) {
                 System.out.println("⚠ Sync student profile check failed: " + e.getMessage());
-                // Attempt to create anyway
-                saveStudentProfileToSupabase(userId);
+                saveStudentProfileToSupabase(canonicalUid);
             }
         }
     }

@@ -1,9 +1,13 @@
 package com.example.testapi.model;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+
 public class RegisterRequest {
     private String email;
     private String password;
+    @JsonAlias("fullName")
     private String displayName;
+    @JsonAlias("role")
     private String userType; // STUDENT or TUTOR
 
     public String getEmail() {
@@ -28,6 +32,10 @@ public class RegisterRequest {
 
     public void setDisplayName(String displayName) {
         this.displayName = displayName;
+    }
+
+    public String getResolvedName() {
+        return displayName == null ? null : displayName.trim();
     }
 
     public String getUserType() {

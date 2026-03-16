@@ -81,7 +81,7 @@ public class AdminService {
         // AC-5: Send notification to tutor
         notificationService.sendApprovalNotification(
             tutor.getUserId(),
-            "Congratulations! Your tutor profile has been approved. You can now accept bookings from students!"
+            "Congratulations! Your tutor profile has been approved. You can now manage your availability and accept bookings from students."
         );
 
         return updated;
@@ -98,10 +98,11 @@ public class AdminService {
 
         TutorProfile tutor = tutorOpt.get();
         tutor.setApprovalStatus("REJECTED");
+        tutor.setVerified(false);
         TutorProfile updated = tutorProfileRepository.save(tutor);
 
         // Send notification
-        notificationService.sendApprovalNotification(
+        notificationService.sendRejectionNotification(
             tutor.getUserId(),
             "Your tutor profile application has been rejected. Reason: " + reason
         );

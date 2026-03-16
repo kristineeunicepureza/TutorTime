@@ -22,18 +22,26 @@ public class AvailabilityService {
     @Autowired
     private TutorProfileRepository tutorProfileRepository;
 
-    /**
-     * Create a new availability slot for a tutor
-     * AC-7: Check for time conflicts to prevent double-booking
-     */
-    public Availability createAvailability(String uid, CreateAvailabilityRequest request) {
-        // Find tutor profile by user ID
+    private TutorProfile requireApprovedTutorProfile(String uid) {
         Optional<TutorProfile> tutorOpt = tutorProfileRepository.findByUserId(uid);
         if (tutorOpt.isEmpty()) {
             throw new RuntimeException("Tutor profile not found for user: " + uid);
         }
 
         TutorProfile tutor = tutorOpt.get();
+        if (!"APPROVED".equals(tutor.getApprovalStatus())) {
+            throw new RuntimeException("Tutor approval is required before managing availability");
+        }
+
+        return tutor;
+    }
+
+    /**
+     * Create a new availability slot for a tutor
+     * AC-7: Check for time conflicts to prevent double-booking
+     */
+    public Availability createAvailability(String uid, CreateAvailabilityRequest request) {
+        TutorProfile tutor = requireApprovedTutorProfile(uid);
 
         // AC-7: Parse times first
         LocalTime newStartTime;
@@ -74,7 +82,7 @@ public class AvailabilityService {
         availability.setSubject(request.getSubject());
         availability.setStartTime(newStartTime);
         availability.setEndTime(newEndTime);
-        availability.setIsRecurring(request.getRecurringWeekly() != null ? request.getRecurringWeekly() : true);
+        availability.setIsRecurring(request.getRecurringWeekly() == null || request.getRecurringWeekly());
         availability.setIsBooked(false);
 
         return availabilityRepository.save(availability);
@@ -89,7 +97,12 @@ public class AvailabilityService {
             return List.of();
         }
 
-        return availabilityRepository.findByTutorId(tutorOpt.get().getId());
+        TutorProfile tutor = tutorOpt.get();
+        if (!"APPROVED".equals(tutor.getApprovalStatus())) {
+            return List.of();
+        }
+
+        return availabilityRepository.findByTutorId(tutor.getId());
     }
 
     /**
@@ -114,8 +127,8 @@ public class AvailabilityService {
         Availability availability = opt.get();
 
         // Verify ownership
-        Optional<TutorProfile> tutorOpt = tutorProfileRepository.findByUserId(uid);
-        if (tutorOpt.isEmpty() || !availability.getTutorId().equals(tutorOpt.get().getId())) {
+        TutorProfile tutor = requireApprovedTutorProfile(uid);
+        if (!availability.getTutorId().equals(tutor.getId())) {
             throw new RuntimeException("You don't have permission to update this availability");
         }
 
@@ -159,7 +172,7 @@ public class AvailabilityService {
         availability.setSubject(request.getSubject());
         availability.setStartTime(newStartTime);
         availability.setEndTime(newEndTime);
-        availability.setIsRecurring(request.getRecurringWeekly() != null ? request.getRecurringWeekly() : true);
+        availability.setIsRecurring(request.getRecurringWeekly() == null || request.getRecurringWeekly());
 
         return availabilityRepository.save(availability);
     }
@@ -167,11 +180,19 @@ public class AvailabilityService {
     /**
      * Delete an availability slot
      */
-    public boolean deleteAvailability(String id) {
-        if (availabilityRepository.existsById(id)) {
-            availabilityRepository.deleteById(id);
-            return true;
+    public boolean deleteAvailability(String id, String uid) {
+        Optional<Availability> availabilityOpt = availabilityRepository.findById(id);
+        if (availabilityOpt.isEmpty()) {
+            return false;
         }
-        return false;
+
+        Availability availability = availabilityOpt.get();
+        TutorProfile tutor = requireApprovedTutorProfile(uid);
+        if (!availability.getTutorId().equals(tutor.getId())) {
+            throw new RuntimeException("You don't have permission to delete this availability");
+        }
+
+        availabilityRepository.deleteById(id);
+        return true;
     }
 }

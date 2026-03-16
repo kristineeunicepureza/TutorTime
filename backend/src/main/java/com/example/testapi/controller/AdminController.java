@@ -1,6 +1,5 @@
 package com.example.testapi.controller;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -20,6 +19,7 @@ import com.example.testapi.entity.Subject;
 import com.example.testapi.entity.TutorProfile;
 import com.example.testapi.entity.User;
 import com.example.testapi.model.TutorDetailResponse;
+import com.example.testapi.repository.TutorProfileRepository;
 import com.example.testapi.repository.UserRepository;
 import com.example.testapi.service.AdminService;
 import com.example.testapi.service.AuthService;
@@ -36,6 +36,9 @@ public class AdminController {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private TutorProfileRepository tutorProfileRepository;
 
     /**
      * Helper method to verify user is admin
@@ -66,6 +69,31 @@ public class AdminController {
             "success", true,
             "count", pending.size(),
             "data", pending
+        );
+    }
+
+    /**
+     * Quick database status check for admin.
+     * GET /api/admin/db-status
+     */
+    @GetMapping("/db-status")
+    public Map<String, Object> getDatabaseStatus(
+            @RequestHeader("Authorization") String authorization) throws Exception {
+
+        String token = authService.extractToken(authorization);
+        String userId = authService.verifyTokenAndGetUid(token);
+        verifyAdminRole(userId);
+
+        long usersCount = userRepository.count();
+        long tutorProfilesCount = tutorProfileRepository.count();
+        long pendingTutorProfilesCount = tutorProfileRepository.countByApprovalStatus("PENDING");
+
+        return Map.of(
+            "success", true,
+            "database", "connected",
+            "usersCount", usersCount,
+            "tutorProfilesCount", tutorProfilesCount,
+            "pendingTutorProfilesCount", pendingTutorProfilesCount
         );
     }
 

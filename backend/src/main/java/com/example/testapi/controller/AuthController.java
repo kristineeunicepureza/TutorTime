@@ -1,9 +1,17 @@
 package com.example.testapi.controller;
 
-import com.example.testapi.model.LoginRequest;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 import java.util.Map;
+
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.example.testapi.model.LoginRequest;
 
 @RestController
 @RequestMapping("/api")
@@ -78,7 +86,7 @@ public class AuthController {
 
     @PostMapping("/register")
     public com.example.testapi.model.AuthResponse register(@RequestBody com.example.testapi.model.RegisterRequest request) {
-        return authService.register(request.getEmail(), request.getPassword(), request.getDisplayName(), request.getUserType());
+        return authService.register(request.getEmail(), request.getPassword(), request.getResolvedName(), request.getUserType());
     }
 
     @GetMapping("/profile")
