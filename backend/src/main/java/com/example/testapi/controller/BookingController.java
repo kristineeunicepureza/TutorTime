@@ -1,18 +1,13 @@
 package com.example.testapi.controller;
 
 import com.example.testapi.entity.Booking;
-import com.example.testapi.entity.Booking.BookingStatus;
-import com.example.testapi.entity.Tutor;
 import com.example.testapi.model.CreateBookingRequest;
-import com.example.testapi.repository.BookingRepository;
-import com.example.testapi.repository.TutorRepository;
+import com.example.testapi.model.CancelBookingRequest;
+import com.example.testapi.service.BookingService;
 import com.example.testapi.service.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -21,115 +16,124 @@ import java.util.Map;
 public class BookingController {
 
     @Autowired
-    private BookingRepository bookingRepository;
-
-    @Autowired
-    private TutorRepository tutorRepository;
+    private BookingService bookingService;
 
     @Autowired
     private AuthService authService;
 
-    private String extractToken(String authHeader) {
-        if (authHeader == null || !authHeader.startsWith("Bearer "))
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing or invalid Authorization header");
-        String token = authHeader.substring(7).trim();
-        if (token.isEmpty())
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Empty token");
-        return token;
-    }
-
     /**
-     * GET /api/bookings
-     * Returns all bookings for the authenticated user.
-     */
-    @GetMapping
-    public List<Booking> getMyBookings(@RequestHeader("Authorization") String authorization) {
-        String token = extractToken(authorization);
-        String userId = authService.verifyTokenAndGetUid(token);
-        return bookingRepository.findByUserIdOrderByDateDesc(userId);
-    }
-
-    /**
+     * AC-1: Student books a tutor appointment
      * POST /api/bookings
-     * Create a new booking.
-     * Body: { "tutorId": "...", "date": "2026-03-20", "time": "3:00 PM", "notes": "..." }
      */
     @PostMapping
-    public Booking createBooking(
+    public Map<String, Object> createBooking(
             @RequestHeader("Authorization") String authorization,
-            @RequestBody CreateBookingRequest request) {
-
-        String token = extractToken(authorization);
-        String userId = authService.verifyTokenAndGetUid(token);
-
-        Tutor tutor = tutorRepository.findById(request.getTutorId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tutor not found"));
-
-        if (request.getDate() == null || request.getDate().isBlank())
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Date is required");
-        if (request.getTime() == null || request.getTime().isBlank())
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Time is required");
-
-        Booking booking = new Booking();
-        booking.setUserId(userId);
-        booking.setTutorId(tutor.getId());
-        booking.setTutorName(tutor.getName());
-        booking.setSubject(tutor.getSubject());
-        booking.setLocation(tutor.getLocation());
-        booking.setAvatarInitials(tutor.getAvatarInitials());
-        booking.setDate(LocalDate.parse(request.getDate()));
-        booking.setTime(request.getTime());
-        booking.setNotes(request.getNotes());
-        booking.setStatus(BookingStatus.CONFIRMED);
-
-        return bookingRepository.save(booking);
+            @RequestBody CreateBookingRequest request) throws Exception {
+        
+        String token = authService.extractToken(authorization);
+        String studentId = authService.verifyTokenAndGetUid(token);
+        
+        try {
+            Booking booking = bookingService.createBooking(studentId, request);
+            return Map.of(
+                "success", true,
+                "message", "Booking created successfully",
+                "data", booking
+            );
+        } catch (RuntimeException e) {
+            return Map.of(
+                "success", false,
+                "message", e.getMessage()
+            );
+        }
     }
 
     /**
-     * PUT /api/bookings/{id}/cancel
-     * Cancel a booking. Only the owner can cancel.
+     * AC-4: Student views their booking history
+     * GET /api/bookings/my
      */
-    @PutMapping("/{id}/cancel")
-    public Map<String, String> cancelBooking(
-            @RequestHeader("Authorization") String authorization,
-            @PathVariable String id) {
-
-        String token = extractToken(authorization);
-        String userId = authService.verifyTokenAndGetUid(token);
-
-        Booking booking = bookingRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found"));
-
-        if (!booking.getUserId().equals(userId))
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only cancel your own bookings");
-
-        if (booking.getStatus() == BookingStatus.CANCELLED)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Booking is already cancelled");
-
-        booking.setStatus(BookingStatus.CANCELLED);
-        bookingRepository.save(booking);
-
-        return Map.of("message", "Booking cancelled successfully", "bookingId", id);
+    @GetMapping("/my")
+    public Map<String, Object> getMyBookings(
+            @RequestHeader("Authorization") String authorization) throws Exception {
+        
+        String token = authService.extractToken(authorization);
+        String studentId = authService.verifyTokenAndGetUid(token);
+        
+        List<Booking> bookings = bookingService.getStudentBookings(studentId);
+        
+        return Map.of(
+            "success", true,
+            "data", bookings
+        );
     }
 
     /**
+     * Tutor views their bookings
+     * GET /api/bookings/tutor
+     */
+    @GetMapping("/tutor")
+    public Map<String, Object> getTutorBookings(
+            @RequestHeader("Authorization") String authorization) throws Exception {
+        
+        String token = authService.extractToken(authorization);
+        String tutorId = authService.verifyTokenAndGetUid(token);
+        
+        List<Booking> bookings = bookingService.getTutorBookings(tutorId);
+        
+        return Map.of(
+            "success", true,
+            "data", bookings
+        );
+    }
+
+    /**
+     * Get a specific booking
      * GET /api/bookings/{id}
-     * Get a single booking by ID (must belong to the authenticated user).
      */
     @GetMapping("/{id}")
-    public Booking getBookingById(
+    public Map<String, Object> getBooking(
+            @PathVariable String id,
+            @RequestHeader("Authorization") String authorization) throws Exception {
+        
+        String token = authService.extractToken(authorization);
+        authService.verifyTokenAndGetUid(token);
+        
+        Booking booking = bookingService.getBooking(id);
+        
+        if (booking == null) {
+            return Map.of("success", false, "message", "Booking not found");
+        }
+        
+        return Map.of("success", true, "data", booking);
+    }
+
+    /**
+     * AC-6: Cancel a booking
+     * DELETE /api/bookings/{id}
+     */
+    @DeleteMapping("/{id}")
+    public Map<String, Object> cancelBooking(
+            @PathVariable String id,
             @RequestHeader("Authorization") String authorization,
-            @PathVariable String id) {
-
-        String token = extractToken(authorization);
+            @RequestBody(required = false) CancelBookingRequest request) throws Exception {
+        
+        String token = authService.extractToken(authorization);
         String userId = authService.verifyTokenAndGetUid(token);
-
-        Booking booking = bookingRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found"));
-
-        if (!booking.getUserId().equals(userId))
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
-
-        return booking;
+        
+        CancelBookingRequest cancelRequest = request != null ? request : new CancelBookingRequest("No reason provided");
+        
+        try {
+            Booking cancelled = bookingService.cancelBooking(id, userId, cancelRequest);
+            return Map.of(
+                "success", true,
+                "message", "Booking cancelled successfully",
+                "data", cancelled
+            );
+        } catch (RuntimeException e) {
+            return Map.of(
+                "success", false,
+                "message", e.getMessage()
+            );
+        }
     }
 }
