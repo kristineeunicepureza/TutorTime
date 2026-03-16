@@ -1,0 +1,262 @@
+/* ======================
+   SignUp.css — TutorTime
+   ====================== */
+
+.signup-container {
+  background-color: #ffffff;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.top-bar {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.back-arrow {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 22px;
+  color: #111111;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.back-arrow:hover {
+  background: #f5f7fa;
+}
+
+.signup-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 32px 48px;
+  overflow-y: auto;
+}
+
+/* Logo */
+.logo {
+  width: 70px;
+  height: 70px;
+  background-color: #0047ab;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 16px rgba(0, 71, 171, 0.3);
+}
+
+.logo-text {
+  font-size: 32px;
+  font-weight: 800;
+  color: #ffffff;
+  font-family: 'DM Sans', 'Segoe UI', sans-serif;
+}
+
+/* Headings */
+.app-name {
+  font-size: 20px;
+  font-weight: 800;
+  color: #0047ab;
+  margin: 0 0 8px;
+  font-family: 'DM Sans', 'Segoe UI', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.create-account {
+  font-size: 22px;
+  font-weight: 800;
+  color: #111111;
+  margin: 0 0 4px;
+  font-family: 'DM Sans', 'Segoe UI', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: #888888;
+  margin: 0 0 24px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* Error */
+.error-message {
+  font-size: 13px;
+  color: #dc2626;
+  background-color: #fef2f2;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  border-left: 4px solid #dc2626;
+  width: 100%;
+  max-width: 400px;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+/* Input Fields */
+.input-field {
+  display: flex;
+  align-items: center;
+  background-color: #f5f7fa;
+  height: 52px;
+  padding: 0 14px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  border: 1.5px solid #e5e8ef;
+  width: 100%;
+  max-width: 400px;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.input-field:focus-within {
+  border-color: #0047ab;
+  background-color: #eef3ff;
+}
+
+.input-icon {
+  font-size: 16px;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+.input-field input {
+  flex: 1;
+  border: none;
+  background: none;
+  font-size: 14px;
+  color: #222222;
+  outline: none;
+  font-family: 'DM Sans', 'Segoe UI', sans-serif;
+}
+
+.input-field input::placeholder {
+  color: #aaaaaa;
+}
+
+.input-field input:disabled {
+  color: #cccccc;
+}
+
+/* Role Section */
+.role-section {
+  width: 100%;
+  max-width: 400px;
+  margin-top: 8px;
+  margin-bottom: 24px;
+}
+
+.role-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: #333333;
+  margin-bottom: 12px;
+  font-family: 'DM Sans', 'Segoe UI', sans-serif;
+}
+
+.role-cards {
+  display: flex;
+  width: 100%;
+  gap: 10px;
+}
+
+.role-card {
+  flex: 1;
+  height: 90px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #f5f7fa;
+  border-radius: 10px;
+  border: 1.5px solid #e5e8ef;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.role-card:hover {
+  border-color: #0047ab;
+}
+
+.role-card.selected {
+  background-color: #0047ab;
+  border-color: #0047ab;
+  box-shadow: 0 4px 12px rgba(0, 71, 171, 0.25);
+}
+
+.role-card.selected .role-text {
+  color: #ffffff;
+}
+
+.role-icon {
+  font-size: 26px;
+  margin-bottom: 6px;
+}
+
+.role-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0047ab;
+  font-family: 'DM Sans', 'Segoe UI', sans-serif;
+}
+
+/* Sign Up Button */
+.sign-up-btn {
+  width: 100%;
+  max-width: 400px;
+  height: 52px;
+  background-color: #0047ab;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 700;
+  border: none;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  cursor: pointer;
+  font-family: 'DM Sans', 'Segoe UI', sans-serif;
+  transition: background-color 0.2s, transform 0.1s;
+  letter-spacing: 0.01em;
+}
+
+.sign-up-btn:hover:not(:disabled) {
+  background-color: #003080;
+  transform: translateY(-1px);
+}
+
+.sign-up-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.sign-up-btn:disabled {
+  background-color: #b0bfdb;
+  cursor: not-allowed;
+}
+
+/* Login Link */
+.login-link {
+  font-size: 14px;
+  color: #555555;
+}
+
+.login-link span {
+  color: #0047ab;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.login-link span:hover {
+  text-decoration: underline;
+}
