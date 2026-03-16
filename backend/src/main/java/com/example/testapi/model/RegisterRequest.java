@@ -4,6 +4,7 @@ public class RegisterRequest {
     private String email;
     private String password;
     private String displayName;
+    private String userType; // STUDENT or TUTOR
 
     public String getEmail() {
         return email;
@@ -27,5 +28,13 @@ public class RegisterRequest {
 
     public void setDisplayName(String displayName) {
         this.displayName = displayName;
+    }
+
+    public String getUserType() {
+        return userType;
+    }
+
+    public void setUserType(String userType) {
+        this.userType = userType;
     }
 }
