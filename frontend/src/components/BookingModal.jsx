@@ -1,7 +1,77 @@
 import { Avatar } from './Avatar';
 
-export function BookingModal({ bookingTutor, bookForm, setBookForm, bookSuccess, onConfirmBooking, onClose }) {
+function parseTimeToMinutes(value) {
+  if (!value) return null;
+  const text = String(value).trim().toUpperCase();
+  const amPmMatch = text.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+  if (amPmMatch) {
+    let hours = Number(amPmMatch[1]);
+    const minutes = Number(amPmMatch[2]);
+    const period = amPmMatch[3];
+    if (period === 'PM' && hours !== 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+    return (hours * 60) + minutes;
+  }
+
+  const hmMatch = text.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (hmMatch) {
+    const hours = Number(hmMatch[1]);
+    const minutes = Number(hmMatch[2]);
+    return (hours * 60) + minutes;
+  }
+
+  return null;
+}
+
+function formatMinutesTo12Hour(totalMinutes) {
+  const hours24 = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const period = hours24 >= 12 ? 'PM' : 'AM';
+  const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
+  return `${hours12}:${String(minutes).padStart(2, '0')} ${period}`;
+}
+
+function generateSlotTimeOptions(slot) {
+  if (!slot?.startTime || !slot?.endTime) return [];
+  const startMinutes = parseTimeToMinutes(slot.startTime);
+  const endMinutes = parseTimeToMinutes(slot.endTime);
+  if (startMinutes == null || endMinutes == null || startMinutes >= endMinutes) return [];
+
+  const options = [];
+  for (let cursor = startMinutes; cursor < endMinutes; cursor += 30) {
+    options.push(formatMinutesTo12Hour(cursor));
+  }
+  return options;
+}
+
+function isDateMatchingSlotDay(dateValue, slotDay) {
+  if (!dateValue || !slotDay) return true;
+  const selected = new Date(`${dateValue}T00:00:00`);
+  if (Number.isNaN(selected.getTime())) return false;
+  const selectedDay = selected
+    .toLocaleDateString('en-US', { weekday: 'long' })
+    .toUpperCase();
+  return selectedDay === String(slotDay).toUpperCase();
+}
+
+export function BookingModal({
+  bookingTutor,
+  selectedAvailability,
+  locationOptions,
+  bookForm,
+  setBookForm,
+  bookSuccess,
+  onConfirmBooking,
+  onClose,
+}) {
   if (!bookingTutor) return null;
+
+  const timeOptions = selectedAvailability ? generateSlotTimeOptions(selectedAvailability) : [];
+  const dateMatchesSlotDay = isDateMatchingSlotDay(bookForm.date, selectedAvailability?.dayOfWeek);
+  const selectedLocationName =
+    (locationOptions || []).find(option => option.id === bookForm.locationId)?.name ||
+    'Unspecified';
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box" onClick={e => e.stopPropagation()}>
@@ -21,7 +91,7 @@ export function BookingModal({ bookingTutor, bookForm, setBookForm, bookSuccess,
               <strong>{new Date(bookForm.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}</strong>{' '}
               at <strong>{bookForm.time}</strong> has been confirmed.
             </p>
-            <div className="book-success-detail">📍 {bookingTutor.location}</div>
+            <div className="book-success-detail">📍 {selectedLocationName}</div>
             <div className="modal-footer" style={{ borderTop: 'none', paddingTop: 0 }}>
               <button className="btn-ghost" onClick={onClose}>Close</button>
             </div>
@@ -38,6 +108,16 @@ export function BookingModal({ bookingTutor, bookForm, setBookForm, bookSuccess,
               </div>
 
               <div className="modal-field">
+                <label className="modal-label">Subject</label>
+                <input
+                  className="modal-input"
+                  value={selectedAvailability?.subject || bookingTutor.subject || ''}
+                  readOnly
+                  style={{ color: 'var(--text-muted)', cursor: 'not-allowed' }}
+                />
+              </div>
+
+              <div className="modal-field">
                 <label className="modal-label">Date <span className="required">*</span></label>
                 <input
                   className="modal-input"
@@ -46,6 +126,13 @@ export function BookingModal({ bookingTutor, bookForm, setBookForm, bookSuccess,
                   value={bookForm.date}
                   onChange={e => setBookForm({ ...bookForm, date: e.target.value })}
                 />
+                {selectedAvailability?.dayOfWeek && (
+                  <div style={{ marginTop: 6, fontSize: 12, color: dateMatchesSlotDay ? '#6b7280' : '#dc2626' }}>
+                    {dateMatchesSlotDay
+                      ? `This slot is available only on ${selectedAvailability.dayOfWeek}.`
+                      : `Please pick a ${selectedAvailability.dayOfWeek} date.`}
+                  </div>
+                )}
               </div>
 
               <div className="modal-field">
@@ -56,27 +143,24 @@ export function BookingModal({ bookingTutor, bookForm, setBookForm, bookSuccess,
                   onChange={e => setBookForm({ ...bookForm, time: e.target.value })}
                 >
                   <option value="">Select a time slot</option>
-                  <option>8:00 AM</option>
-                  <option>9:00 AM</option>
-                  <option>10:00 AM</option>
-                  <option>11:00 AM</option>
-                  <option>1:00 PM</option>
-                  <option>2:00 PM</option>
-                  <option>3:00 PM</option>
-                  <option>4:00 PM</option>
-                  <option>5:00 PM</option>
-                  <option>6:00 PM</option>
+                  {(timeOptions.length > 0 ? timeOptions : [bookForm.time].filter(Boolean)).map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
                 </select>
               </div>
 
               <div className="modal-field">
                 <label className="modal-label">Location</label>
-                <input
+                <select
                   className="modal-input"
-                  value={bookingTutor.location}
-                  readOnly
-                  style={{ color: 'var(--text-muted)', cursor: 'not-allowed' }}
-                />
+                  value={bookForm.locationId || ''}
+                  onChange={e => setBookForm({ ...bookForm, locationId: e.target.value })}
+                >
+                  <option value="">Select location</option>
+                  {(locationOptions || []).map(option => (
+                    <option key={option.id} value={option.id}>{option.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="modal-field">
@@ -95,8 +179,8 @@ export function BookingModal({ bookingTutor, bookForm, setBookForm, bookSuccess,
               <button
                 className="btn-primary"
                 onClick={onConfirmBooking}
-                disabled={!bookForm.date || !bookForm.time}
-                style={{ opacity: (!bookForm.date || !bookForm.time) ? 0.5 : 1 }}
+                disabled={!bookForm.date || !bookForm.time || !bookForm.locationId || !dateMatchesSlotDay}
+                style={{ opacity: (!bookForm.date || !bookForm.time || !bookForm.locationId || !dateMatchesSlotDay) ? 0.5 : 1 }}
               >
                 Confirm Booking
               </button>

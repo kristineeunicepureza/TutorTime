@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import './TutorTimeDashboard.css';
+import { getTutors, getMyBookings, getBookingLocationOptions, createBooking, cancelBooking } from './apiService';
 
 // Import utility functions
 import {
@@ -70,9 +71,22 @@ function StudentDashboard() {
   const [bookingsLoading, setBookingsLoading] = useState(true);
   const [bookModalOpen, setBookModalOpen] = useState(false);
   const [bookingTutor, setBookingTutor] = useState(null);
-  const [bookForm, setBookForm] = useState({ date: '', time: '', notes: '' });
+  const [selectedAvailability, setSelectedAvailability] = useState(null);
+  const [bookForm, setBookForm] = useState({ date: '', time: '', locationId: '', notes: '' });
+  const [locationOptions, setLocationOptions] = useState([]);
   const [bookSuccess, setBookSuccess] = useState(false);
   const [cancelConfirmId, setCancelConfirmId] = useState(null);
+
+  const normalizeApiTime = (timeValue) => {
+    if (!timeValue) return '';
+    const match = String(timeValue).match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+    if (!match) return String(timeValue);
+    const hours = Number(match[1]);
+    const minutes = match[2];
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const twelveHour = hours % 12 === 0 ? 12 : hours % 12;
+    return `${twelveHour}:${minutes} ${period}`;
+  };
 
   const displayName = savedProfile.name || localStorage.getItem('userName') || 'Student';
   const userRole = 'STUDENT';
@@ -82,37 +96,71 @@ function StudentDashboard() {
   const unreadCount = notifications.filter(n => !n.read).length;
   const stats = calculateStats(upcomingBookings, pastBookings);
 
+  const refreshBookings = async () => {
+    const payload = await getMyBookings();
+    const rows = Array.isArray(payload?.data)
+      ? payload.data
+      : Array.isArray(payload)
+      ? payload
+      : [];
+    const normalized = rows.map(normalizeBooking);
+    setUpcomingBookings(normalized.filter(b => b.status === 'CONFIRMED' || b.status === 'PENDING'));
+    setPastBookings(normalized.filter(b => b.status === 'COMPLETED' || b.status === 'CANCELLED'));
+  };
+
   // ── Fetch tutors on mount ─────────────────────────────────────────
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    fetch('http://localhost:8080/api/tutors', {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-      .then(r => r.json())
-      .then(data => {
-        const tutorList = data.data ? Array.isArray(data.data) ? data.data : [] : Array.isArray(data) ? data : [];
-        setTutors(tutorList.map(normalizeTutor));
+    (async () => {
+      try {
+        const payload = await getTutors();
+        const tutorRows = Array.isArray(payload?.data)
+          ? payload.data
+          : Array.isArray(payload)
+          ? payload
+          : [];
+        setTutors(tutorRows.map(normalizeTutor));
+      } catch {
+        setTutors([]);
+      } finally {
         setTutorsLoading(false);
-      })
-      .catch(() => setTutorsLoading(false));
+      }
+    })();
   }, []);
 
   // ── Fetch bookings on mount ───────────────────────────────────────
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) { setBookingsLoading(false); return; }
-    fetch('http://localhost:8080/api/bookings', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (!Array.isArray(data)) { setBookingsLoading(false); return; }
-        const normalized = data.map(normalizeBooking);
-        setUpcomingBookings(normalized.filter(b => b.status === 'CONFIRMED' || b.status === 'PENDING'));
-        setPastBookings(normalized.filter(b => b.status === 'COMPLETED' || b.status === 'CANCELLED'));
+    (async () => {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
         setBookingsLoading(false);
-      })
-      .catch(() => setBookingsLoading(false));
+        return;
+      }
+      try {
+        await refreshBookings();
+      } catch {
+        setUpcomingBookings([]);
+        setPastBookings([]);
+      } finally {
+        setBookingsLoading(false);
+      }
+    })();
+  }, []);
+
+  // ── Fetch booking location choices on mount ──────────────────────
+  useEffect(() => {
+    (async () => {
+      try {
+        const payload = await getBookingLocationOptions();
+        const options = Array.isArray(payload?.data)
+          ? payload.data
+          : Array.isArray(payload)
+          ? payload
+          : [];
+        setLocationOptions(options);
+      } catch {
+        setLocationOptions([]);
+      }
+    })();
   }, []);
 
   const navItems = [
@@ -132,11 +180,11 @@ function StudentDashboard() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    localStorage.removeItem('authToken');
     localStorage.removeItem('userName');
     localStorage.removeItem('userRole');
     localStorage.removeItem('userEmail');
-    window.location.href = '/login'; // Redirect to login
+    window.location.href = '/';
   };
 
   const handleLogoutClick = () => {
@@ -179,53 +227,69 @@ function StudentDashboard() {
     editPhotoRef.current = null; // Reset ref
   };
 
-  const handleBookSession = (tutor) => {
+  const handleBookSession = (tutor, availabilitySlot = null) => {
     setBookingTutor(tutor);
-    setBookForm({ date: '', time: '', notes: '' });
+    setSelectedAvailability(availabilitySlot);
+    setBookForm({
+      date: '',
+      time: availabilitySlot ? normalizeApiTime(availabilitySlot.startTime) : '',
+      locationId: locationOptions[0]?.id || '',
+      notes: '',
+    });
     setBookSuccess(false);
     setBookModalOpen(true);
   };
 
   const handleConfirmBooking = async () => {
     if (!bookForm.date || !bookForm.time) return;
-    const token = localStorage.getItem('authToken');
+
+    if (!selectedAvailability?.id) {
+      alert('Please book from a specific available slot.');
+      return;
+    }
+
+    const selectedDay = new Date(`${bookForm.date}T00:00:00`)
+      .toLocaleDateString('en-US', { weekday: 'long' })
+      .toUpperCase();
+    const slotDay = String(selectedAvailability.dayOfWeek || '').toUpperCase();
+    if (slotDay && selectedDay !== slotDay) {
+      alert(`Please select a ${slotDay} date for this slot.`);
+      return;
+    }
+
+    const bookingTime = normalizeApiTime(selectedAvailability.startTime) || bookForm.time;
+
     try {
-      const res = await fetch('http://localhost:8080/api/bookings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          tutorId: bookingTutor.id,
-          date: bookForm.date,
-          time: bookForm.time,
-          notes: bookForm.notes,
-        }),
+      await createBooking({
+        tutorId: bookingTutor.id,
+        availabilityId: selectedAvailability.id,
+        locationId: bookForm.locationId,
+        bookingDate: bookForm.date,
+        bookingTime,
       });
-      if (!res.ok) throw new Error('Failed');
-      const created = await res.json();
-      const normalizedBooking = normalizeBooking(created);
-      setUpcomingBookings(prev => [normalizedBooking, ...prev]);
+
+      await refreshBookings();
       
       // Add notification for booking confirmation
+      const normalizedBooking = normalizeBooking({
+        tutorName: bookingTutor.name,
+        date: bookForm.date,
+        time: bookingTime,
+        subject: selectedAvailability.subject || bookingTutor.subject,
+      });
       const newNotif = createNotification(normalizedBooking, 'booked');
       setNotifications(prev => [newNotif, ...prev]);
       
       setBookSuccess(true);
-    } catch {
-      alert('Failed to book session. Please try again.');
+    } catch (error) {
+      alert(error?.message || 'Failed to book session. Please try again.');
     }
   };
 
   const handleCancelBooking = async (id) => {
-    const token = localStorage.getItem('authToken');
     try {
-      const res = await fetch(`http://localhost:8080/api/bookings/${id}/cancel`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error('Failed');
+      await cancelBooking(id);
+      await refreshBookings();
       
       // Find the booking to create notification
       const booking = upcomingBookings.find(b => b.id === id);
@@ -233,12 +297,8 @@ function StudentDashboard() {
         const newNotif = createNotification(booking, 'cancelled');
         setNotifications(prev => [newNotif, ...prev]);
       }
-      
-      setUpcomingBookings(prev =>
-        prev.map(b => b.id === id ? { ...b, status: 'CANCELLED' } : b)
-      );
-    } catch {
-      alert('Failed to cancel booking. Please try again.');
+    } catch (error) {
+      alert(error?.message || 'Failed to cancel booking. Please try again.');
     }
     setCancelConfirmId(null);
   };
@@ -359,12 +419,15 @@ function StudentDashboard() {
       {bookModalOpen && (
         <BookingModal 
           bookingTutor={bookingTutor}
+          selectedAvailability={selectedAvailability}
+          locationOptions={locationOptions}
           bookForm={bookForm}
           setBookForm={setBookForm}
           bookSuccess={bookSuccess}
           onConfirmBooking={handleConfirmBooking}
           onClose={() => { 
             setBookModalOpen(false); 
+            setSelectedAvailability(null);
             setBookSuccess(false); 
           }}
         />

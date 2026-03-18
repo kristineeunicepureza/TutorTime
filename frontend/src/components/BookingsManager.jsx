@@ -43,7 +43,16 @@ export function BookingsManager({ bookingTab, setBookingTab, upcomingBookings, p
                 <span>📅 {b.date}, {b.time}</span>
                 <span>📍 {b.location}</span>
               </div>
+              {(b.durationMinutes || b.price) && (
+                <div className="booking-card-meta" style={{ marginTop: 6 }}>
+                  {b.durationMinutes && <span>⏱️ {b.durationMinutes} mins</span>}
+                  {b.price && <span>💵 {b.price}</span>}
+                </div>
+              )}
               {b.notes && <div className="booking-notes">📝 {b.notes}</div>}
+              {b.status === 'CANCELLED' && b.cancellationReason && (
+                <div className="booking-notes">❌ Reason: {b.cancellationReason}</div>
+              )}
             </div>
             <div className="booking-card-right">
               <StatusBadge status={b.status} />

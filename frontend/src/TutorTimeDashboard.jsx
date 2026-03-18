@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import './TutorTimeDashboard.css';
+import { getTutors, getMyBookings, createBooking, cancelBooking } from './apiService';
 
 // Import utility functions
 import {
@@ -66,9 +67,27 @@ function TutorTimeDashboard() {
   const [bookingsLoading, setBookingsLoading] = useState(true);
   const [bookModalOpen, setBookModalOpen] = useState(false);
   const [bookingTutor, setBookingTutor] = useState(null);
+  const [selectedAvailability, setSelectedAvailability] = useState(null);
   const [bookForm, setBookForm] = useState({ date: '', time: '', notes: '' });
   const [bookSuccess, setBookSuccess] = useState(false);
   const [cancelConfirmId, setCancelConfirmId] = useState(null);
+
+  const unwrapDataArray = (payload) => {
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.data)) return payload.data;
+    return [];
+  };
+
+  const normalizeApiTime = (timeValue) => {
+    if (!timeValue) return '';
+    const match = String(timeValue).match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+    if (!match) return String(timeValue);
+    const hours = Number(match[1]);
+    const minutes = match[2];
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const twelveHour = hours % 12 === 0 ? 12 : hours % 12;
+    return `${twelveHour}:${minutes} ${period}`;
+  };
 
   const displayName = savedProfile.name || localStorage.getItem('userName') || 'User';
   const userRole = localStorage.getItem('userRole') || 'Student';
@@ -80,31 +99,41 @@ function TutorTimeDashboard() {
 
   // ── Fetch tutors on mount ─────────────────────────────────────────
   useEffect(() => {
-    fetch('http://localhost:8080/api/tutors')
-      .then(r => r.json())
-      .then(data => {
-        setTutors(Array.isArray(data) ? data.map(normalizeTutor) : []);
+    (async () => {
+      try {
+        const payload = await getTutors();
+        const tutorRows = unwrapDataArray(payload);
+        setTutors(tutorRows.map(normalizeTutor));
+      } catch {
+        setTutors([]);
+      } finally {
         setTutorsLoading(false);
-      })
-      .catch(() => setTutorsLoading(false));
+      }
+    })();
   }, []);
 
   // ── Fetch bookings on mount ───────────────────────────────────────
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (!token) { setBookingsLoading(false); return; }
-    fetch('http://localhost:8080/api/bookings', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (!Array.isArray(data)) { setBookingsLoading(false); return; }
-        const normalized = data.map(normalizeBooking);
+    (async () => {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        setBookingsLoading(false);
+        return;
+      }
+
+      try {
+        const payload = await getMyBookings();
+        const rows = unwrapDataArray(payload);
+        const normalized = rows.map(normalizeBooking);
         setUpcomingBookings(normalized.filter(b => b.status === 'CONFIRMED' || b.status === 'PENDING'));
         setPastBookings(normalized.filter(b => b.status === 'COMPLETED' || b.status === 'CANCELLED'));
+      } catch {
+        setUpcomingBookings([]);
+        setPastBookings([]);
+      } finally {
         setBookingsLoading(false);
-      })
-      .catch(() => setBookingsLoading(false));
+      }
+    })();
   }, []);
 
   const navItems = [
@@ -167,32 +196,47 @@ function TutorTimeDashboard() {
     editPhotoRef.current = null; // Reset ref
   };
 
-  const handleBookSession = (tutor) => {
+  const handleBookSession = (tutor, availabilitySlot = null) => {
     setBookingTutor(tutor);
-    setBookForm({ date: '', time: '', notes: '' });
+    setSelectedAvailability(availabilitySlot);
+    setBookForm({
+      date: '',
+      time: availabilitySlot ? normalizeApiTime(availabilitySlot.startTime) : '',
+      notes: '',
+    });
     setBookSuccess(false);
     setBookModalOpen(true);
   };
 
   const handleConfirmBooking = async () => {
     if (!bookForm.date || !bookForm.time) return;
-    const token = localStorage.getItem('authToken');
+
+    if (!selectedAvailability?.id) {
+      alert('Please choose a specific available slot before confirming booking.');
+      return;
+    }
+
+    const selectedDay = new Date(`${bookForm.date}T00:00:00`)
+      .toLocaleDateString('en-US', { weekday: 'long' })
+      .toUpperCase();
+    const slotDay = String(selectedAvailability.dayOfWeek || '').toUpperCase();
+
+    if (slotDay && selectedDay !== slotDay) {
+      alert(`Please select a ${slotDay} date for this slot.`);
+      return;
+    }
+
     try {
-      const res = await fetch('http://localhost:8080/api/bookings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          tutorId: bookingTutor.id,
-          date: bookForm.date,
-          time: bookForm.time,
-          notes: bookForm.notes,
-        }),
+      const createdPayload = await createBooking({
+        tutorId: bookingTutor.id,
+        availabilityId: selectedAvailability.id,
+        locationId: bookingTutor.location,
+        subject: selectedAvailability.subject || bookingTutor.subject,
+        bookingDate: bookForm.date,
+        bookingTime: bookForm.time,
       });
-      if (!res.ok) throw new Error('Failed');
-      const created = await res.json();
+
+      const created = createdPayload?.data || createdPayload;
       const normalizedBooking = normalizeBooking(created);
       setUpcomingBookings(prev => [normalizedBooking, ...prev]);
       
@@ -201,19 +245,14 @@ function TutorTimeDashboard() {
       setNotifications(prev => [newNotif, ...prev]);
       
       setBookSuccess(true);
-    } catch {
-      alert('Failed to book session. Please try again.');
+    } catch (error) {
+      alert(error?.message || 'Failed to book session. Please try again.');
     }
   };
 
   const handleCancelBooking = async (id) => {
-    const token = localStorage.getItem('authToken');
     try {
-      const res = await fetch(`http://localhost:8080/api/bookings/${id}/cancel`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error('Failed');
+      await cancelBooking(id);
       
       // Find the booking to create notification
       const booking = upcomingBookings.find(b => b.id === id);
@@ -225,8 +264,8 @@ function TutorTimeDashboard() {
       setUpcomingBookings(prev =>
         prev.map(b => b.id === id ? { ...b, status: 'CANCELLED' } : b)
       );
-    } catch {
-      alert('Failed to cancel booking. Please try again.');
+    } catch (error) {
+      alert(error?.message || 'Failed to cancel booking. Please try again.');
     }
     setCancelConfirmId(null);
   };
@@ -331,6 +370,7 @@ function TutorTimeDashboard() {
           onConfirmBooking={handleConfirmBooking}
           onClose={() => { 
             setBookModalOpen(false); 
+            setSelectedAvailability(null);
             setBookSuccess(false); 
           }}
         />

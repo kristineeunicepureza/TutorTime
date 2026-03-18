@@ -284,7 +284,7 @@ function SignUp({ onSwitchToLogin, onSignUpSuccess }) {
 
     setLoading(true);
     try {
-      const displayName = `${fullName} (${selectedRole})`;
+      const displayName = fullName.trim();
       const roleUppercase = selectedRole.toUpperCase();
       const response = await registerUser(email, password, displayName, roleUppercase);
       if (response.success) {

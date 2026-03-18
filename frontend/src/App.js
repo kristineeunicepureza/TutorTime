@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Login from './Login';
 import SignUp from './SignUp';
 import StudentDashboard from './StudentDashboard';
@@ -14,10 +14,29 @@ function App() {
   const switchToSignUp = () => setCurrentView('signup');
   const switchToLogin = () => setCurrentView('login');
 
+  // ✅ NEW: Restore user from localStorage on app mount (for page refreshes)
+  useEffect(() => {
+    const savedUserName = localStorage.getItem('userName');
+    const savedUserEmail = localStorage.getItem('userEmail');
+    const savedUserRole = localStorage.getItem('userRole');
+    
+    if (savedUserName && savedUserEmail && savedUserRole) {
+      const role = (savedUserRole || 'STUDENT').toUpperCase();
+      setCurrentUser({ 
+        name: savedUserName, 
+        email: savedUserEmail, 
+        role 
+      });
+      setCurrentView('dashboard');
+      console.log('✅ Restored user from localStorage:', { name: savedUserName, role });
+    }
+  }, []);
+
   // ✅ FIXED: called by Login on success — now ensures role is uppercase
   const handleLoginSuccess = (email, displayName, userRole) => {
     const name = displayName || email.split('@')[0];
     const role = (userRole || 'STUDENT').toUpperCase();
+    console.log('✅ Login successful! Name:', name, 'Role:', role, 'Raw userRole:', userRole);
     localStorage.setItem('userName', name);
     localStorage.setItem('userEmail', email);
     localStorage.setItem('userRole', role);
@@ -39,20 +58,21 @@ function App() {
 
 
 
-  // ✅ Route to correct dashboard based on user role
+  // Route to correct dashboard based on user role
   const renderDashboard = () => {
     if (!currentUser) return null;
 
-    const role = currentUser.role?.toUpperCase();
-    
-    if (role === 'ADMIN') {
-      return <AdminDashboard />;
-    } else if (role === 'TUTOR') {
-      return <TutorDashboard />;
-    } else {
-      // Default to STUDENT
-      return <StudentDashboard />;
-    }
+    const role = (currentUser.role || '').toUpperCase();
+
+    if (role === 'ADMIN') return <AdminDashboard />;
+    if (role === 'TUTOR') return <TutorDashboard />;
+    if (role === 'STUDENT') return <StudentDashboard />;
+
+    // Fallback: unknown/missing role — clear session and return to login
+    localStorage.clear();
+    setCurrentUser(null);
+    setCurrentView('login');
+    return null;
   };
 
   return (

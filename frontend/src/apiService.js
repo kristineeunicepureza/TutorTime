@@ -2,7 +2,7 @@
 // In development: use relative paths to proxy through React dev server
 // In production: use full URL from environment
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? (process.env.REACT_APP_API_URL || 'http://localhost:8080/api')
+  ? (process.env.REACT_APP_API_URL || 'http://localhost:8083/api')
   : '/api';
 
 console.log('API Mode:', process.env.NODE_ENV);
@@ -151,6 +151,70 @@ export const uploadPhoto = async (file) => {
     console.error('Upload Error:', error);
     throw error;
   }
+};
+
+// ── Tutors ────────────────────────────────────────────────────────
+export const getTutors = async () => {
+  return makeRequest('/tutors', { method: 'GET' });
+};
+
+export const searchTutors = async (query) => {
+  return makeRequest('/search', {
+    method: 'POST',
+    body: JSON.stringify(query),
+  });
+};
+
+// ── Bookings ──────────────────────────────────────────────────────
+export const getMyBookings = async () => {
+  return makeRequest('/bookings/my', { method: 'GET' });
+};
+
+export const getTutorBookings = async () => {
+  return makeRequest('/bookings/tutor', { method: 'GET' });
+};
+
+export const createBooking = async (bookingData) => {
+  return makeRequest('/bookings', {
+    method: 'POST',
+    body: JSON.stringify(bookingData),
+  });
+};
+
+export const getBookingLocationOptions = async () => {
+  return makeRequest('/bookings/location-options', { method: 'GET' });
+};
+
+export const cancelBooking = async (id) => {
+  return makeRequest(`/bookings/${id}`, { method: 'DELETE' });
+};
+
+// ── Availability ──────────────────────────────────────────────────
+export const getAvailability = async () => {
+  return makeRequest('/availability', { method: 'GET' });
+};
+
+export const addAvailability = async (availabilityData) => {
+  return makeRequest('/availability', {
+    method: 'POST',
+    body: JSON.stringify(availabilityData),
+  });
+};
+
+// ── Admin ─────────────────────────────────────────────────────────
+export const getPendingTutors = async () => {
+  return makeRequest('/admin/tutor-requests', { method: 'GET' });
+};
+
+export const approveTutor = async (tutorId) => {
+  return makeRequest(`/admin/tutor/${tutorId}/approve`, { method: 'PUT' });
+};
+
+export const rejectTutor = async (tutorId, reason) => {
+  return makeRequest(`/admin/tutor/${tutorId}/reject`, {
+    method: 'PUT',
+    body: JSON.stringify({ reason }),
+  });
 };
 
 /**

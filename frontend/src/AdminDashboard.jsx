@@ -19,6 +19,7 @@ function AdminDashboard() {
   const [pendingTutors, setPendingTutors] = useState([]);
   const [verifiedTutors, setVerifiedTutors] = useState([]);
   const [tutorsLoading, setTutorsLoading] = useState(true);
+  const [tutorsError, setTutorsError] = useState('');
   const [selectedTutor, setSelectedTutor] = useState(null);
   const [tutorDetailModalOpen, setTutorDetailModalOpen] = useState(false);
 
@@ -50,44 +51,89 @@ function AdminDashboard() {
   useEffect(() => {
     const token = localStorage.getItem('authToken');
     if (!token) { setTutorsLoading(false); return; }
-    fetch('http://localhost:8080/api/admin/tutor-requests', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then(data => {
-        setPendingTutors(extractTutorList(data));
-        setTutorsLoading(false);
+
+    const fetchPendingTutors = () => {
+      fetch('/api/admin/tutor-requests', {
+        headers: { Authorization: `Bearer ${token}` },
       })
-      .catch(() => setTutorsLoading(false));
+        .then(async (r) => {
+          const data = await r.json().catch(() => ({}));
+          if (!r.ok || data.success === false) {
+            throw new Error(data.message || `Failed to fetch pending tutor requests (${r.status})`);
+          }
+          return data;
+        })
+        .then(data => {
+          setTutorsError('');
+          setPendingTutors(extractTutorList(data));
+          setTutorsLoading(false);
+        })
+        .catch((error) => {
+          setTutorsError(error.message || 'Failed to fetch pending tutor requests');
+          setTutorsLoading(false);
+        });
+    };
+
+    fetchPendingTutors();
+    const interval = setInterval(fetchPendingTutors, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   // ── Fetch verified tutors ─────────────────────────────────────────
   useEffect(() => {
     const token = localStorage.getItem('authToken');
     if (!token) return;
-    fetch('http://localhost:8080/api/admin/tutors/verified', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then(data => {
-        setVerifiedTutors(Array.isArray(data) ? data : []);
+
+    const fetchVerifiedTutors = () => {
+      fetch('/api/admin/tutors/verified', {
+        headers: { Authorization: `Bearer ${token}` },
       })
-      .catch(() => {});
+        .then(async (r) => {
+          const data = await r.json().catch(() => []);
+          if (!r.ok) {
+            throw new Error(`Failed to fetch verified tutors (${r.status})`);
+          }
+          return data;
+        })
+        .then(data => {
+          // Handle both raw array and wrapped response
+          const tutorsList = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+          setVerifiedTutors(tutorsList);
+        })
+        .catch((error) => {
+          console.error('Failed to fetch verified tutors:', error);
+          setVerifiedTutors([]);
+        });
+    };
+
+    fetchVerifiedTutors();
+    const interval = setInterval(fetchVerifiedTutors, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   // ── Fetch subjects ────────────────────────────────────────────────
   useEffect(() => {
     const token = localStorage.getItem('authToken');
     if (!token) { setSubjectsLoading(false); return; }
-    fetch('http://localhost:8080/api/admin/subjects', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then(data => {
-        setSubjects(Array.isArray(data.data) ? data.data : []);
-        setSubjectsLoading(false);
+
+    const fetchSubjects = () => {
+      fetch('/api/subjects', {
+        headers: { Authorization: `Bearer ${token}` },
       })
-      .catch(() => setSubjectsLoading(false));
+        .then(r => r.json())
+        .then(data => {
+          setSubjects(Array.isArray(data.data) ? data.data : []);
+          setSubjectsLoading(false);
+        })
+        .catch((error) => {
+          console.error('Failed to fetch subjects:', error);
+          setSubjectsLoading(false);
+        });
+    };
+
+    fetchSubjects();
+    const interval = setInterval(fetchSubjects, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   // ── Fetch system logs ─────────────────────────────────────────────
@@ -130,13 +176,17 @@ function AdminDashboard() {
   const handleApproveTutor = async (tutorId) => {
     const token = localStorage.getItem('authToken');
     try {
-      const res = await fetch(`http://localhost:8080/api/admin/tutor/${tutorId}/approve`, {
+      const res = await fetch(`/api/admin/tutor/${tutorId}/approve`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (data.success) {
+        const approved = pendingTutors.find(t => getTutorId(t) === tutorId);
         setPendingTutors(prev => prev.filter(t => getTutorId(t) !== tutorId));
+        if (approved) {
+          setVerifiedTutors(prev => [...prev, { ...approved, approvalStatus: 'APPROVED' }]);
+        }
         alert('✅ Tutor approved successfully!');
       } else {
         alert('❌ ' + data.message);
@@ -153,7 +203,7 @@ function AdminDashboard() {
 
     const token = localStorage.getItem('authToken');
     try {
-      const res = await fetch(`http://localhost:8080/api/admin/tutor/${tutorId}/reject`, {
+      const res = await fetch(`/api/admin/tutor/${tutorId}/reject`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason })
@@ -178,7 +228,7 @@ function AdminDashboard() {
     }
     const token = localStorage.getItem('authToken');
     try {
-      const res = await fetch('http://localhost:8080/api/admin/subjects', {
+      const res = await fetch('/api/admin/subjects', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -281,6 +331,12 @@ function AdminDashboard() {
             <h2 className="section-title" style={{ marginBottom: 16 }}>
               Pending Verifications ({pendingTutors.length})
             </h2>
+
+            {tutorsError && (
+              <div style={{ marginBottom: '16px', padding: '12px 14px', borderRadius: '8px', background: 'rgba(244, 67, 54, 0.1)', color: 'var(--error)' }}>
+                {tutorsError}
+              </div>
+            )}
 
             {tutorsLoading ? (
               <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>Loading tutors...</div>

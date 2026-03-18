@@ -17,7 +17,7 @@ function TutorDashboard() {
   const [activeNav, setActiveNav] = useState('dashboard');
   const [notifOpen, setNotifOpen] = useState(false);
   const [bookingTab, setBookingTab] = useState('upcoming');
-  const [notifications] = useState([]);
+  const [notifications, setNotifications] = useState([]);
 
   // Logout confirmation
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
@@ -28,7 +28,7 @@ function TutorDashboard() {
     dayOfWeek: 'MONDAY',
     startTime: '09:00',
     endTime: '17:00',
-    subject: 'Mathematics',
+    subject: '',
     isRecurring: true,
   });
   const [availableSlots, setAvailableSlots] = useState([]);
@@ -42,6 +42,7 @@ function TutorDashboard() {
   const [editPhoto, setEditPhoto] = useState(null);
   const [approvalStatus, setApprovalStatus] = useState('PENDING');
   const [approvalStatusLoading, setApprovalStatusLoading] = useState(true);
+  const prevApprovalStatusRef = useRef(null);
 
   const [editForm, setEditForm] = useState({
     name: localStorage.getItem('userName') || '',
@@ -61,45 +62,197 @@ function TutorDashboard() {
   const [pastBookings, setPastBookings] = useState([]);
   const [bookingsLoading, setBookingsLoading] = useState(true);
 
+  // Subjects (from admin)
+  const [subjects, setSubjects] = useState([]);
+  const [subjectsLoading, setSubjectsLoading] = useState(true);
+
   const displayName = savedProfile.name || localStorage.getItem('userName') || 'Tutor';
   const userEmail = localStorage.getItem('userEmail') || '';
   const userInitials = getInitials(displayName);
   const firstName = getFirstName(displayName);
   const unreadCount = notifications.filter(n => !n.read).length;
 
+  const normalizeAvailabilitySlot = (slot) => {
+    if (!slot || typeof slot !== 'object') return null;
+    return {
+      id: slot.id,
+      dayOfWeek: slot.dayOfWeek || slot.day_of_week || '-',
+      startTime: slot.startTime || slot.start_time || '-',
+      endTime: slot.endTime || slot.end_time || '-',
+      subject: slot.subject || '-',
+      isRecurring: slot.isRecurring ?? slot.is_recurring ?? false,
+      isBooked: slot.isBooked ?? slot.is_booked ?? false,
+    };
+  };
+
+  const normalizeNotification = (item) => {
+    if (!item || typeof item !== 'object') return null;
+    return {
+      id: item.id || Date.now(),
+      text: item.message || item.text || '',
+      time: item.createdAt ? new Date(item.createdAt).toLocaleString() : (item.time || ''),
+      read: item.isRead ?? item.read ?? false,
+    };
+  };
+
   // ── Fetch availability slots on mount ──────────────────────────────
   useEffect(() => {
     const token = localStorage.getItem('authToken');
     if (!token) { setSlotsLoading(false); return; }
-    fetch('http://localhost:8080/api/availability', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then(data => {
-        setAvailableSlots(Array.isArray(data) ? data : []);
-        setSlotsLoading(false);
+    
+    const fetchSlots = () => {
+      fetch('/api/availability', {
+        headers: { Authorization: `Bearer ${token}` },
       })
-      .catch(() => setSlotsLoading(false));
+        .then(r => r.json())
+        .then(data => {
+          const rawSlots = Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data)
+            ? data
+            : [];
+          setAvailableSlots(rawSlots.map(normalizeAvailabilitySlot).filter(Boolean));
+          setSlotsLoading(false);
+        })
+        .catch(() => setSlotsLoading(false));
+    };
+    
+    fetchSlots();
+    // Auto-refresh availability slots every 5 seconds to ensure students see new slots immediately
+    const interval = setInterval(fetchSlots, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   // ── Fetch bookings on mount ───────────────────────────────────────
   useEffect(() => {
     const token = localStorage.getItem('authToken');
     if (!token) { setBookingsLoading(false); return; }
-    fetch('http://localhost:8080/api/bookings/myBookings', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (!Array.isArray(data)) { setBookingsLoading(false); return; }
-        setUpcomingBookings(data.filter(b => b.status === 'CONFIRMED' || b.status === 'PENDING') || []);
-        setPastBookings(data.filter(b => b.status === 'COMPLETED' || b.status === 'CANCELLED') || []);
-        setBookingsLoading(false);
+    
+    const fetchBookings = () => {
+      fetch('/api/bookings/tutor', {
+        headers: { Authorization: `Bearer ${token}` },
       })
-      .catch(() => setBookingsLoading(false));
+        .then(r => r.json())
+        .then(data => {
+          const bookings = Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data)
+            ? data
+            : [];
+
+          // Normalize tutor bookings defensively because status/name formats can vary across API revisions.
+          const normalizedBookings = bookings.map(b => {
+            const rawStatus = (b.status || b.bookingStatus || '').toString().trim().toUpperCase();
+            const parsedSlotStart = b.slotStart ? new Date(b.slotStart) : null;
+            const hasValidSlotStart = parsedSlotStart && !Number.isNaN(parsedSlotStart.getTime());
+            const displayStatus = rawStatus || (hasValidSlotStart && parsedSlotStart < new Date() ? 'COMPLETED' : 'CONFIRMED');
+
+            const studentName =
+              b.studentName ||
+              b.student?.name ||
+              b.student?.fullName ||
+              b.tutorName ||
+              (typeof b.tutor === 'string' ? b.tutor : null) ||
+              (b.studentId ? `Student ${String(b.studentId).slice(0, 8)}` : 'Unknown Student');
+
+            return {
+              ...b,
+              id: b.id,
+              status: displayStatus,
+              tutor: studentName,
+              date: b.date || (hasValidSlotStart ? parsedSlotStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''),
+              time: b.time || (hasValidSlotStart ? parsedSlotStart.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : ''),
+              subject: b.subject || 'General Tutoring',
+              location: b.locationName || b.location || 'Online',
+              durationMinutes: b.durationMinutes,
+              price: b.price,
+              slotStartDate: hasValidSlotStart ? parsedSlotStart : null,
+            };
+          });
+
+          const now = new Date();
+          const isPastBooking = (booking) => {
+            if (booking.status === 'COMPLETED' || booking.status === 'CANCELLED') return true;
+            if (booking.slotStartDate) return booking.slotStartDate < now;
+            return false;
+          };
+
+          setUpcomingBookings(normalizedBookings.filter(b => !isPastBooking(b)) || []);
+          setPastBookings(normalizedBookings.filter(isPastBooking) || []);
+          setBookingsLoading(false);
+        })
+        .catch(() => setBookingsLoading(false));
+    };
+    
+    fetchBookings();
+    // Auto-refresh bookings every 5 seconds to catch new bookings immediately
+    const interval = setInterval(fetchBookings, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // ── Fetch tutor notifications from backend ─────────────────────────
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+
+    const fetchNotifications = () => {
+      fetch('/api/notifications', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(r => r.json())
+        .then(data => {
+          const rows = Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data)
+            ? data
+            : [];
+          setNotifications(rows.map(normalizeNotification).filter(Boolean));
+        })
+        .catch(() => {});
+    };
+
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // ── Fetch subjects from public endpoint on mount ──────────────────────────────
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    if (!token) { setSubjectsLoading(false); return; }
+
+    const fetchSubjects = () => {
+      fetch('/api/subjects', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(r => r.json())
+        .then(data => {
+          const subjectList = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+          setSubjects(subjectList);
+          
+          // Set default subject to first available subject
+          if (subjectList.length > 0) {
+            setAvailabilityForm(prev => ({
+              ...prev,
+              subject: subjectList[0].name || ''
+            }));
+          }
+          
+          setSubjectsLoading(false);
+        })
+        .catch((error) => {
+          console.error('Failed to fetch subjects:', error);
+          setSubjectsLoading(false);
+        });
+    };
+
+    fetchSubjects();
+    const interval = setInterval(fetchSubjects, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   // ── Fetch approval status on mount ─────────────────────────────────
+
   useEffect(() => {
     const token = localStorage.getItem('authToken');
     if (!token) { setApprovalStatusLoading(false); return; }
@@ -116,8 +269,8 @@ function TutorDashboard() {
 
       // Try both common create endpoints because backend variants differ.
       const createEndpoints = [
-        'http://localhost:8080/api/tutors/profile',
-        'http://localhost:8080/api/tutors/profile/create',
+        '/api/tutors/profile',
+        '/api/tutors/profile/create',
       ];
 
       for (const endpoint of createEndpoints) {
@@ -149,7 +302,7 @@ function TutorDashboard() {
     };
 
     const fetchApprovalStatus = async () => {
-      const profileRes = await fetch('http://localhost:8080/api/tutors/profile/my-profile', {
+      const profileRes = await fetch('/api/tutors/profile/my-profile', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -157,7 +310,20 @@ function TutorDashboard() {
         const data = await profileRes.json();
         if (data.success && data.data) {
           if (data.data.approvalStatus) {
-            setApprovalStatus(data.data.approvalStatus);
+            const newStatus = data.data.approvalStatus;
+            if (prevApprovalStatusRef.current !== null && prevApprovalStatusRef.current !== newStatus) {
+              const msg = newStatus === 'APPROVED'
+                ? 'Your tutor account has been approved. You can now start accepting students.'
+                : newStatus === 'REJECTED'
+                ? 'Your tutor application has been rejected. Please contact support for more information.'
+                : null;
+              if (msg) {
+                const notif = { id: Date.now(), text: msg, time: new Date().toLocaleTimeString(), read: false };
+                setNotifications(prev => [notif, ...prev]);
+              }
+            }
+            prevApprovalStatusRef.current = newStatus;
+            setApprovalStatus(newStatus);
           }
 
           setSavedProfile(prev => ({
@@ -206,11 +372,11 @@ function TutorDashboard() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    localStorage.removeItem('authToken');
     localStorage.removeItem('userName');
     localStorage.removeItem('userRole');
     localStorage.removeItem('userEmail');
-    window.location.href = '/login';
+    window.location.href = '/';
   };
 
   const handleLogoutClick = () => {
@@ -229,7 +395,7 @@ function TutorDashboard() {
         recurringWeekly: availabilityForm.isRecurring,
       };
 
-      const res = await fetch('http://localhost:8080/api/availability', {
+      const res = await fetch('/api/availability', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -243,8 +409,11 @@ function TutorDashboard() {
         throw new Error(errData?.message || errData?.error || 'Failed to add availability');
       }
 
-      const newSlot = await res.json();
-      setAvailableSlots(prev => [newSlot, ...prev]);
+      const createdResponse = await res.json();
+      const createdSlot = normalizeAvailabilitySlot(createdResponse?.data || createdResponse);
+      if (createdSlot) {
+        setAvailableSlots(prev => [createdSlot, ...prev]);
+      }
       setAvailabilityModalOpen(false);
       setAvailabilityForm({
         dayOfWeek: 'MONDAY',
@@ -290,6 +459,35 @@ function TutorDashboard() {
   };
 
   const renderContent = () => {
+    if (!approvalStatusLoading && approvalStatus !== 'APPROVED') {
+      return (
+        <div className="page-content" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+          <div className="card" style={{ maxWidth: '480px', textAlign: 'center', padding: '40px 32px' }}>
+            {approvalStatus === 'REJECTED' ? (
+              <>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>❌</div>
+                <h2 style={{ color: 'var(--error)', marginBottom: '12px' }}>Application Rejected</h2>
+                <p style={{ color: 'var(--text)', lineHeight: '1.6' }}>
+                  Your tutor application has been rejected. Please contact support for more information.
+                </p>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
+                <h2 style={{ color: '#FF9800', marginBottom: '12px' }}>Application Under Review</h2>
+                <p style={{ color: 'var(--text)', lineHeight: '1.6' }}>
+                  Your tutor application is currently under review. You'll receive a notification once approved.
+                </p>
+              </>
+            )}
+            <button className="btn-ghost" onClick={handleLogoutClick} style={{ marginTop: '24px' }}>
+              Log Out
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     if (activeNav === 'dashboard') {
       return (
         <div className="page-content">
@@ -474,12 +672,24 @@ function TutorDashboard() {
 
                   <div className="modal-field">
                     <label className="modal-label">Subject</label>
-                    <input
+                    <select
                       className="modal-input"
                       value={availabilityForm.subject}
                       onChange={e => setAvailabilityForm({ ...availabilityForm, subject: e.target.value })}
-                      placeholder="e.g. Mathematics"
-                    />
+                    >
+                      <option value="">-- Select a Subject --</option>
+                      {subjectsLoading ? (
+                        <option disabled>Loading subjects...</option>
+                      ) : subjects.length === 0 ? (
+                        <option disabled>No subjects available</option>
+                      ) : (
+                        subjects.map(subj => (
+                          <option key={subj.id} value={subj.name}>
+                            {subj.name}
+                          </option>
+                        ))
+                      )}
+                    </select>
                   </div>
 
                   <div className="modal-field">
@@ -560,12 +770,22 @@ function TutorDashboard() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                       <div>
                         <div style={{ fontWeight: 600 }}>{booking.tutor}</div>
+                        <div style={{ fontSize: '13px', color: 'var(--primary)', marginTop: '4px', fontWeight: 600 }}>
+                          {booking.subject}
+                        </div>
                         <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
                           📅 {booking.date} • 🕐 {booking.time}
                         </div>
                         <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
                           📍 {booking.location || 'TBD'}
                         </div>
+                        {(booking.durationMinutes || booking.price) && (
+                          <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                            {booking.durationMinutes ? `⏱️ ${booking.durationMinutes} mins` : ''}
+                            {booking.durationMinutes && booking.price ? ' • ' : ''}
+                            {booking.price ? `💵 ${booking.price}` : ''}
+                          </div>
+                        )}
                       </div>
                       <span style={{
                         background: 'var(--success-light)',
@@ -590,6 +810,9 @@ function TutorDashboard() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                       <div>
                         <div style={{ fontWeight: 600 }}>{booking.tutor}</div>
+                        <div style={{ fontSize: '13px', color: 'var(--primary)', marginTop: '4px', fontWeight: 600 }}>
+                          {booking.subject}
+                        </div>
                         <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
                           📅 {booking.date} • 🕐 {booking.time}
                         </div>

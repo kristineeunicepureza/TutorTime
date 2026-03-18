@@ -24,17 +24,12 @@ function Login({ onSwitchToSignUp, onLoginSuccess }) {
     setLoading(true);
     try {
       const response = await loginUser(email, password);
+      console.log('📡 Full login response:', JSON.stringify(response, null, 2)); // Debug log
       // if backend indicates failure, surface message to user instead of silently ignoring
       if (response.success) {
-        // you might want to notify or redirect on success
-        if (response.message) {
-          // optional: keep alert for now, or remove if you prefer in-app UI
-          alert(response.message);
-        }
         if (onLoginSuccess) {
-          // ✅ ADDED: extract display name and role from API response
-          const displayName = response.user?.name || response.displayName || null;
-          const userRole = response.user?.role || response.role || 'STUDENT';
+          const displayName = response.user?.name || response.displayName || email.split('@')[0];
+          const userRole = (response.user?.role || response.role || 'STUDENT').toUpperCase();
           onLoginSuccess(email, displayName, userRole);
         }
       } else {

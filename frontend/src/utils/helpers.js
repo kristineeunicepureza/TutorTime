@@ -87,12 +87,98 @@ export function normalizeTutor(t) {
 
 // Normalize booking data from backend
 export function normalizeBooking(b) {
+  const booking = (b && typeof b === 'object' && b.data && typeof b.data === 'object') ? b.data : (b || {});
+
+  const formatDateDisplay = (dateValue, slotStartValue) => {
+    if (dateValue) {
+      const parsedDate = new Date(dateValue);
+      if (!Number.isNaN(parsedDate.getTime())) {
+        return parsedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+      const isoDateMatch = String(dateValue).match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (isoDateMatch) {
+        const dateFromIso = new Date(`${isoDateMatch[1]}-${isoDateMatch[2]}-${isoDateMatch[3]}T00:00:00`);
+        if (!Number.isNaN(dateFromIso.getTime())) {
+          return dateFromIso.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+      }
+      return String(dateValue);
+    }
+
+    if (slotStartValue) {
+      const parsed = new Date(slotStartValue);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+    }
+
+    return '';
+  };
+
+  const formatTimeDisplay = (timeValue, slotStartValue) => {
+    if (timeValue) {
+      const parsedTime = new Date(`1970-01-01T${timeValue}`);
+      if (!Number.isNaN(parsedTime.getTime())) {
+        return parsedTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      }
+
+      const regexMatch = String(timeValue).match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+      if (regexMatch) {
+        const hours = Number(regexMatch[1]);
+        const minutes = regexMatch[2];
+        const period = hours >= 12 ? 'PM' : 'AM';
+        const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+        return `${hour12}:${minutes} ${period}`;
+      }
+
+      return String(timeValue);
+    }
+
+    if (slotStartValue) {
+      const parsed = new Date(slotStartValue);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      }
+    }
+
+    return '';
+  };
+
+  const tutorName =
+    booking.tutorName ||
+    booking.tutor_name ||
+    booking.tutorFullName ||
+    booking.tutorDisplayName ||
+    (typeof booking.tutor === 'string' ? booking.tutor : null) ||
+    booking.tutor?.name ||
+    booking.tutor?.fullName ||
+    booking.teacherName ||
+    (booking.tutorId ? `Tutor ${String(booking.tutorId).slice(0, 8)}` : 'Unknown Tutor');
+
+  const slotStart = booking.slotStart || booking.slot_start;
+  const date = formatDateDisplay(booking.date || booking.bookingDate, slotStart);
+  const time = formatTimeDisplay(booking.time || booking.bookingTime, slotStart);
+  const location =
+    booking.locationName ||
+    booking.location?.name ||
+    booking.location ||
+    booking.locationId ||
+    'Online';
+  
   return {
-    ...b,
-    status: (b.status || 'UNKNOWN').toString().toUpperCase(),
-    tutor: b.tutorName,
-    avatar: b.avatarInitials || getInitials(b.tutorName || ''),
-    date: b.date ? new Date(b.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
+    ...booking,
+    id: booking.id,
+    status: (booking.status || booking.bookingStatus || 'UNKNOWN').toString().toUpperCase(),
+    tutor: tutorName,
+    avatar: booking.avatarInitials || getInitials(tutorName || 'Unknown'),
+    date,
+    time,
+    subject: booking.subject || booking.topic || 'General Tutoring',
+    location,
+    notes: booking.notes || '',
+    durationMinutes: booking.durationMinutes,
+    price: booking.price,
+    cancellationReason: booking.cancellationReason || booking.cancelReason || '',
   };
 }
 
