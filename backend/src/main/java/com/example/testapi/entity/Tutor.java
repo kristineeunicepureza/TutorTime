@@ -2,6 +2,7 @@ package com.example.testapi.entity;
 
 import jakarta.persistence.*;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "tutors")
@@ -9,7 +10,7 @@ public class Tutor {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+    private UUID id;
 
     private String name;
     private String subject;
@@ -32,8 +33,8 @@ public class Tutor {
     @Column(name = "slot")
     private List<String> availability;
 
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public String getSubject() { return subject; }

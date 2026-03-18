@@ -1,10 +1,11 @@
 package com.example.testapi.repository;
 
-import com.example.testapi.entity.Notification;
+import java.util.List;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
+import com.example.testapi.entity.Notification;
 
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, String> {

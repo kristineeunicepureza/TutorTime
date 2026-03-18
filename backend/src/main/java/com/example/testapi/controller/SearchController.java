@@ -1,13 +1,19 @@
 package com.example.testapi.controller;
 
-import com.example.testapi.model.TutorSearchRequest;
-import com.example.testapi.service.SearchService;
-import com.example.testapi.service.AuthService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.example.testapi.service.AuthService;
+import com.example.testapi.service.SearchService;
 
 @RestController
 @RequestMapping("/api/search")
@@ -32,7 +38,7 @@ public class SearchController {
             @RequestHeader("Authorization") String authorization) throws Exception {
         
         String token = authService.extractToken(authorization);
-        String studentId = authService.verifyTokenAndGetUid(token);
+        authService.verifyTokenAndGetUid(token);
         
         List<Map<String, Object>> results = searchService.searchTutorsBySubject(subject, dayOfWeek, location);
         

@@ -1,12 +1,5 @@
 package com.example.testapi.service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
 import com.example.testapi.entity.Subject;
 import com.example.testapi.entity.TutorProfile;
 import com.example.testapi.entity.User;
@@ -14,9 +7,23 @@ import com.example.testapi.model.TutorDetailResponse;
 import com.example.testapi.repository.SubjectRepository;
 import com.example.testapi.repository.TutorProfileRepository;
 import com.example.testapi.repository.UserRepository;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 @Service
 public class AdminService {
+
+    private UUID parseUuid(String id, String fieldName) {
+        try {
+            return UUID.fromString(id);
+        } catch (Exception e) {
+            throw new RuntimeException("Invalid " + fieldName + " format");
+        }
+    }
 
     @Autowired
     private TutorProfileRepository tutorProfileRepository;
@@ -39,24 +46,24 @@ public class AdminService {
 
         for (TutorProfile tutor : allTutors) {
             if ("PENDING".equals(tutor.getApprovalStatus())) {
-                Optional<User> userOpt = userRepository.findById(tutor.getUserId());
-                if (userOpt.isPresent()) {
-                    User user = userOpt.get();
-                    TutorDetailResponse detail = new TutorDetailResponse(
-                        tutor.getId(),
-                        tutor.getUserId(),
-                        user.getFullName(),
-                        user.getEmail(),
-                        tutor.getBio(),
-                        tutor.getHourlyRate(),
-                        tutor.getSpecialization(),
-                        tutor.getYearsOfExperience(),
-                        tutor.getRating(),
-                        tutor.getApprovalStatus(),
-                        tutor.getCreatedAt()
-                    );
-                    pending.add(detail);
-                }
+                Optional<User> userOpt = userRepository.findById(parseUuid(tutor.getUserId(), "userId"));
+                String name = userOpt.map(User::getFullName).orElse("Tutor application pending");
+                String email = userOpt.map(User::getEmail).orElse("Email unavailable");
+
+                TutorDetailResponse detail = new TutorDetailResponse(
+                    tutor.getId(),
+                    tutor.getUserId(),
+                    name,
+                    email,
+                    tutor.getBio(),
+                    tutor.getHourlyRate(),
+                    tutor.getSpecialization(),
+                    tutor.getYearsOfExperience(),
+                    tutor.getRating(),
+                    tutor.getApprovalStatus(),
+                    tutor.getCreatedAt()
+                );
+                pending.add(detail);
             }
         }
 
@@ -68,7 +75,7 @@ public class AdminService {
      * Updates status to APPROVED and sends notification
      */
     public TutorProfile approveTutor(String tutorId) {
-        Optional<TutorProfile> tutorOpt = tutorProfileRepository.findById(tutorId);
+        Optional<TutorProfile> tutorOpt = tutorProfileRepository.findById(parseUuid(tutorId, "tutorId"));
         if (tutorOpt.isEmpty()) {
             throw new RuntimeException("Tutor not found");
         }
@@ -91,7 +98,7 @@ public class AdminService {
      * Reject a tutor
      */
     public TutorProfile rejectTutor(String tutorId, String reason) {
-        Optional<TutorProfile> tutorOpt = tutorProfileRepository.findById(tutorId);
+        Optional<TutorProfile> tutorOpt = tutorProfileRepository.findById(parseUuid(tutorId, "tutorId"));
         if (tutorOpt.isEmpty()) {
             throw new RuntimeException("Tutor not found");
         }
@@ -138,7 +145,7 @@ public class AdminService {
      * Update a subject
      */
     public Subject updateSubject(String subjectId, String name, String description) {
-        Optional<Subject> subjectOpt = subjectRepository.findById(subjectId);
+        Optional<Subject> subjectOpt = subjectRepository.findById(parseUuid(subjectId, "subjectId"));
         if (subjectOpt.isEmpty()) {
             throw new RuntimeException("Subject not found");
         }
@@ -153,7 +160,7 @@ public class AdminService {
      * Deactivate a subject
      */
     public void deactivateSubject(String subjectId) {
-        Optional<Subject> subjectOpt = subjectRepository.findById(subjectId);
+        Optional<Subject> subjectOpt = subjectRepository.findById(parseUuid(subjectId, "subjectId"));
         if (subjectOpt.isPresent()) {
             Subject subject = subjectOpt.get();
             subject.setActive(false);

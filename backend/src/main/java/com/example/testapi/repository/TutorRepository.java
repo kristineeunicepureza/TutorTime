@@ -1,7 +1,10 @@
 package com.example.testapi.repository;
 
-import com.example.testapi.entity.Tutor;
+import java.util.UUID;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface TutorRepository extends JpaRepository<Tutor, String> {
+import com.example.testapi.entity.Tutor;
+
+public interface TutorRepository extends JpaRepository<Tutor, UUID> {
 }

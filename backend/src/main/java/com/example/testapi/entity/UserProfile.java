@@ -1,12 +1,19 @@
 package com.example.testapi.entity;
 
-import jakarta.persistence.*;
+import java.util.UUID;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "profiles")
 public class UserProfile {
     @Id
-    private String id; // Supabase auth user id (uuid)
+    @Column(columnDefinition = "uuid")
+    private UUID id; // Supabase auth user id (uuid)
 
     @Column(nullable = false, unique = true)
     private String email;
@@ -16,11 +23,11 @@ public class UserProfile {
     @Lob
     private byte[] photo;
 
-    public String getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(String id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 

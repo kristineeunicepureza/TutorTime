@@ -69,6 +69,23 @@ public class AvailabilityController {
     }
 
     /**
+     * GET /api/availability/tutor/{tutorId}
+     * Get all availability slots for a specific tutor (public, no auth required)
+     * Used by students to view any tutor's available time slots
+     */
+    @GetMapping("/tutor/{tutorId}")
+    public Map<String, Object> getTutorAvailability(
+            @PathVariable String tutorId) {
+        
+        List<Availability> slots = availabilityService.getPublicAvailableSlotsByTutorIdentifier(tutorId);
+        
+        return Map.of(
+            "success", true,
+            "data", slots
+        );
+    }
+
+    /**
      * GET /api/availability/{id}
      * Get a specific availability slot
      */

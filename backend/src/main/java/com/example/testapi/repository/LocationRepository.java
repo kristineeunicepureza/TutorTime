@@ -1,11 +1,12 @@
 package com.example.testapi.repository;
 
-import com.example.testapi.entity.Location;
+import java.util.List;
+import java.util.Optional;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
-import java.util.Optional;
+import com.example.testapi.entity.Location;
 
 @Repository
 public interface LocationRepository extends JpaRepository<Location, String> {

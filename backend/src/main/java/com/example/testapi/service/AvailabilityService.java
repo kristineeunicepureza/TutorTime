@@ -3,6 +3,8 @@ package com.example.testapi.service;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -16,6 +18,14 @@ import com.example.testapi.repository.TutorProfileRepository;
 @Service
 public class AvailabilityService {
 
+    private UUID parseUuid(String id, String fieldName) {
+        try {
+            return UUID.fromString(id);
+        } catch (Exception e) {
+            throw new RuntimeException("Invalid " + fieldName + " format");
+        }
+    }
+
     @Autowired
     private AvailabilityRepository availabilityRepository;
 
@@ -23,7 +33,7 @@ public class AvailabilityService {
     private TutorProfileRepository tutorProfileRepository;
 
     private TutorProfile requireApprovedTutorProfile(String uid) {
-        Optional<TutorProfile> tutorOpt = tutorProfileRepository.findByUserId(uid);
+        Optional<TutorProfile> tutorOpt = tutorProfileRepository.findByUserId(parseUuid(uid, "userId"));
         if (tutorOpt.isEmpty()) {
             throw new RuntimeException("Tutor profile not found for user: " + uid);
         }
@@ -59,7 +69,7 @@ public class AvailabilityService {
         }
 
         // AC-7: Check for conflicts with existing slots on same day
-        List<Availability> existingSlots = availabilityRepository.findByTutorId(tutor.getId());
+        List<Availability> existingSlots = availabilityRepository.findByTutorId(parseUuid(tutor.getId(), "tutorId"));
         for (Availability slot : existingSlots) {
             // Check if same day of week
             if (slot.getDayOfWeek().equalsIgnoreCase(request.getDayOfWeek())) {
@@ -92,7 +102,7 @@ public class AvailabilityService {
      * Get all availability slots for a tutor
      */
     public List<Availability> getAvailabilityByTutorId(String uid) {
-        Optional<TutorProfile> tutorOpt = tutorProfileRepository.findByUserId(uid);
+        Optional<TutorProfile> tutorOpt = tutorProfileRepository.findByUserId(parseUuid(uid, "userId"));
         if (tutorOpt.isEmpty()) {
             return List.of();
         }
@@ -102,14 +112,35 @@ public class AvailabilityService {
             return List.of();
         }
 
-        return availabilityRepository.findByTutorId(tutor.getId());
+        return availabilityRepository.findByTutorId(parseUuid(tutor.getId(), "tutorId"));
+    }
+
+    /**
+     * Get unbooked availability slots for student-facing tutor profile pages.
+     * Accepts either tutor profile id or tutor user id.
+     */
+    public List<Availability> getPublicAvailableSlotsByTutorIdentifier(String tutorIdentifier) {
+        UUID tutorUuid = parseUuid(tutorIdentifier, "tutorId");
+
+        Optional<TutorProfile> tutorOpt = tutorProfileRepository.findById(tutorUuid);
+        if (tutorOpt.isEmpty()) {
+            tutorOpt = tutorProfileRepository.findByUserId(tutorUuid);
+        }
+
+        if (tutorOpt.isEmpty() || !"APPROVED".equals(tutorOpt.get().getApprovalStatus())) {
+            return List.of();
+        }
+
+        return availabilityRepository.findByTutorId(parseUuid(tutorOpt.get().getId(), "tutorId")).stream()
+            .filter(slot -> !Boolean.TRUE.equals(slot.getIsBooked()))
+            .collect(Collectors.toList());
     }
 
     /**
      * Get a specific availability slot
      */
     public Availability getAvailabilityById(String id) {
-        Optional<Availability> opt = availabilityRepository.findById(id);
+        Optional<Availability> opt = availabilityRepository.findById(parseUuid(id, "availabilityId"));
         return opt.orElse(null);
     }
 
@@ -118,7 +149,7 @@ public class AvailabilityService {
      * AC-7: Check for time conflicts with other slots
      */
     public Availability updateAvailability(String id, String uid, CreateAvailabilityRequest request) {
-        Optional<Availability> opt = availabilityRepository.findById(id);
+        Optional<Availability> opt = availabilityRepository.findById(parseUuid(id, "availabilityId"));
         
         if (opt.isEmpty()) {
             throw new RuntimeException("Availability not found");
@@ -147,7 +178,7 @@ public class AvailabilityService {
         }
 
         // AC-7: Check for conflicts with OTHER slots on same day
-        List<Availability> existingSlots = availabilityRepository.findByTutorId(availability.getTutorId());
+        List<Availability> existingSlots = availabilityRepository.findByTutorId(parseUuid(availability.getTutorId(), "tutorId"));
         for (Availability slot : existingSlots) {
             // Skip the slot being updated
             if (slot.getId().equals(id)) {
@@ -181,7 +212,7 @@ public class AvailabilityService {
      * Delete an availability slot
      */
     public boolean deleteAvailability(String id, String uid) {
-        Optional<Availability> availabilityOpt = availabilityRepository.findById(id);
+        Optional<Availability> availabilityOpt = availabilityRepository.findById(parseUuid(id, "availabilityId"));
         if (availabilityOpt.isEmpty()) {
             return false;
         }
@@ -192,7 +223,7 @@ public class AvailabilityService {
             throw new RuntimeException("You don't have permission to delete this availability");
         }
 
-        availabilityRepository.deleteById(id);
+        availabilityRepository.deleteById(parseUuid(id, "availabilityId"));
         return true;
     }
 }

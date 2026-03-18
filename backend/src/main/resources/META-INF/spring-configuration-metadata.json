@@ -1,0 +1,29 @@
+{
+  "groups": [
+    {
+      "name": "supabase",
+      "type": "com.example.testapi.config.SupabaseProperties",
+      "description": "Supabase configuration properties"
+    },
+    {
+      "name": "supabase.api",
+      "type": "com.example.testapi.config.SupabaseProperties$ApiKey",
+      "sourceType": "com.example.testapi.config.SupabaseProperties",
+      "description": "Supabase API configuration"
+    }
+  ],
+  "properties": [
+    {
+      "name": "supabase.url",
+      "type": "java.lang.String",
+      "description": "Supabase project URL",
+      "sourceType": "com.example.testapi.config.SupabaseProperties"
+    },
+    {
+      "name": "supabase.api.key",
+      "type": "java.lang.String",
+      "description": "Supabase API key",
+      "sourceType": "com.example.testapi.config.SupabaseProperties$ApiKey"
+    }
+  ]
+}

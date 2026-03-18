@@ -2,6 +2,7 @@ package com.example.testapi.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "subjects")
@@ -9,7 +10,8 @@ public class Subject {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+    @Column(columnDefinition = "uuid")
+    private UUID id;
 
     @Column(nullable = false, unique = true)
     private String name;  // "Mathematics", "Computer Science", etc.
@@ -38,8 +40,8 @@ public class Subject {
     }
 
     // Getters and Setters
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public String getId() { return id == null ? null : id.toString(); }
+    public void setId(String id) { this.id = id == null ? null : UUID.fromString(id); }
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }

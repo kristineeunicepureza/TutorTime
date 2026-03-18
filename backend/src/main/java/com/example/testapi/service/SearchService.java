@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +18,14 @@ import com.example.testapi.repository.TutorProfileRepository;
 
 @Service
 public class SearchService {
+
+    private UUID parseUuid(String id, String fieldName) {
+        try {
+            return UUID.fromString(id);
+        } catch (Exception e) {
+            throw new RuntimeException("Invalid " + fieldName + " format");
+        }
+    }
 
     @Autowired
     private TutorProfileRepository tutorProfileRepository;
@@ -39,7 +49,7 @@ public class SearchService {
         List<Map<String, Object>> results = new ArrayList<>();
 
         for (TutorProfile tutor : approvedTutors) {
-            List<Availability> slots = availabilityRepository.findByTutorId(tutor.getId());
+            List<Availability> slots = availabilityRepository.findByTutorId(parseUuid(tutor.getId(), "tutorId"));
 
             // Filter slots by subject and criteria
             List<Availability> matchingSlots = slots.stream()
@@ -64,6 +74,7 @@ public class SearchService {
                     slotMap.put("dayOfWeek", s.getDayOfWeek());
                     slotMap.put("startTime", s.getStartTime().toString());
                     slotMap.put("endTime", s.getEndTime().toString());
+                    slotMap.put("subject", s.getSubject());
                     slotMap.put("isRecurring", s.getIsRecurring());
                     slotsList.add(slotMap);
                 }
@@ -79,7 +90,17 @@ public class SearchService {
      * Get available tutor slots for direct booking
      */
     public List<Map<String, Object>> getAvailableSlots(String tutorId, String subject) {
-        List<Availability> slots = availabilityRepository.findByTutorId(tutorId);
+        UUID tutorUuid = parseUuid(tutorId, "tutorId");
+        Optional<TutorProfile> tutorOpt = tutorProfileRepository.findById(tutorUuid);
+        if (tutorOpt.isEmpty()) {
+            tutorOpt = tutorProfileRepository.findByUserId(tutorUuid);
+        }
+
+        if (tutorOpt.isEmpty() || !"APPROVED".equals(tutorOpt.get().getApprovalStatus())) {
+            return List.of();
+        }
+
+        List<Availability> slots = availabilityRepository.findByTutorId(parseUuid(tutorOpt.get().getId(), "tutorId"));
 
         List<Map<String, Object>> result = new ArrayList<>();
         for (Availability s : slots) {

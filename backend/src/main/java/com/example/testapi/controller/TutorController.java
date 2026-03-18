@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,15 +18,11 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.testapi.entity.TutorProfile;
 import com.example.testapi.entity.User;
 import com.example.testapi.repository.TutorProfileRepository;
-import com.example.testapi.repository.TutorRepository;
 import com.example.testapi.repository.UserRepository;
 
 @RestController
 @RequestMapping("/api/tutors")
 public class TutorController {
-
-    @Autowired
-    private TutorRepository tutorRepository;
 
     @Autowired
     private TutorProfileRepository tutorProfileRepository;
@@ -48,7 +45,7 @@ public class TutorController {
 
         List<Map<String, Object>> tutorList = new ArrayList<>();
         for (TutorProfile tutor : approved) {
-            Optional<User> userOpt = userRepository.findById(tutor.getUserId());
+            Optional<User> userOpt = userRepository.findById(UUID.fromString(tutor.getUserId()));
             if (userOpt.isPresent()) {
                 User user = userOpt.get();
                 Map<String, Object> tutorMap = new HashMap<>();
@@ -61,7 +58,8 @@ public class TutorController {
                 tutorMap.put("specialization", tutor.getSpecialization());
                 tutorMap.put("hourlyRate", tutor.getHourlyRate());
                 tutorMap.put("yearsOfExperience", tutor.getYearsOfExperience());
-                tutorMap.put("rating", tutor.getRating() != null ? tutor.getRating() : 0.0);
+                Double rating = tutor.getRating();
+                tutorMap.put("rating", rating != null ? rating : 0.0);
                 tutorMap.put("verified", tutor.getVerified());
                 tutorMap.put("sessions", 0);
                 tutorMap.put("tags", new ArrayList<>());
@@ -88,7 +86,7 @@ public class TutorController {
         String token = authService.extractToken(authorization);
         String uid = authService.verifyTokenAndGetUid(token);
 
-        Optional<TutorProfile> tutorOpt = tutorProfileRepository.findByUserId(uid);
+        Optional<TutorProfile> tutorOpt = tutorProfileRepository.findByUserId(UUID.fromString(uid));
         if (tutorOpt.isEmpty()) {
             return Map.of(
                 "success", false,
@@ -135,7 +133,7 @@ public class TutorController {
         String uid = authService.verifyTokenAndGetUid(token);
         
         // Check if profile already exists
-        if (tutorProfileRepository.findByUserId(uid).isPresent()) {
+        if (tutorProfileRepository.findByUserId(UUID.fromString(uid)).isPresent()) {
             return Map.of(
                 "success", false,
                 "message", "TutorProfile already exists for this user"
@@ -147,8 +145,20 @@ public class TutorController {
         profile.setUserId(uid);
         profile.setBio(request.get("bio") != null ? request.get("bio").toString() : "");
         profile.setSpecialization(request.get("specialization") != null ? request.get("specialization").toString() : "");
-        profile.setHourlyRate(request.get("hourlyRate") != null ? Double.parseDouble(request.get("hourlyRate").toString()) : 0.0);
-        profile.setYearsOfExperience(request.get("yearsOfExperience") != null ? Integer.parseInt(request.get("yearsOfExperience").toString()) : 0);
+        Object hourlyRate = request.get("hourlyRate");
+        if (hourlyRate != null) {
+            double rate = Double.parseDouble(hourlyRate.toString());
+            profile.setHourlyRate(rate);
+        } else {
+            profile.setHourlyRate(0.0);
+        }
+        Object yearsOfExp = request.get("yearsOfExperience");
+        if (yearsOfExp != null) {
+            int years = Integer.parseInt(yearsOfExp.toString());
+            profile.setYearsOfExperience(years);
+        } else {
+            profile.setYearsOfExperience(0);
+        }
         profile.setVerified(false);
         profile.setTotalSessions(0);
         

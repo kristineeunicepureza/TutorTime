@@ -1,15 +1,25 @@
 package com.example.testapi.controller;
 
-import com.example.testapi.entity.Booking;
-import com.example.testapi.model.CreateBookingRequest;
-import com.example.testapi.model.CancelBookingRequest;
-import com.example.testapi.service.BookingService;
-import com.example.testapi.service.AuthService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.example.testapi.entity.Booking;
+import com.example.testapi.model.CancelBookingRequest;
+import com.example.testapi.model.CreateBookingRequest;
+import com.example.testapi.service.AuthService;
+import com.example.testapi.service.BookingService;
 
 @RestController
 @RequestMapping("/api/bookings")
@@ -26,7 +36,7 @@ public class BookingController {
      * POST /api/bookings
      */
     @PostMapping
-    public Map<String, Object> createBooking(
+    public ResponseEntity<Map<String, Object>> createBooking(
             @RequestHeader("Authorization") String authorization,
             @RequestBody CreateBookingRequest request) throws Exception {
         
@@ -35,17 +45,29 @@ public class BookingController {
         
         try {
             Booking booking = bookingService.createBooking(studentId, request);
-            return Map.of(
+            return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "Booking created successfully",
                 "data", booking
-            );
+            ));
         } catch (RuntimeException e) {
-            return Map.of(
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
                 "success", false,
                 "message", e.getMessage()
-            );
+            ));
         }
+    }
+
+    /**
+     * Booking form location choices.
+     * GET /api/bookings/location-options
+     */
+    @GetMapping("/location-options")
+    public Map<String, Object> getBookingLocationOptions() {
+        return Map.of(
+            "success", true,
+            "data", bookingService.getBookingLocationChoices()
+        );
     }
 
     /**
@@ -59,7 +81,7 @@ public class BookingController {
         String token = authService.extractToken(authorization);
         String studentId = authService.verifyTokenAndGetUid(token);
         
-        List<Booking> bookings = bookingService.getStudentBookings(studentId);
+        List<?> bookings = bookingService.getStudentBookingsWithDetails(studentId);
         
         return Map.of(
             "success", true,
@@ -78,7 +100,7 @@ public class BookingController {
         String token = authService.extractToken(authorization);
         String tutorId = authService.verifyTokenAndGetUid(token);
         
-        List<Booking> bookings = bookingService.getTutorBookings(tutorId);
+        List<?> bookings = bookingService.getTutorBookingsWithDetails(tutorId);
         
         return Map.of(
             "success", true,

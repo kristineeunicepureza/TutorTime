@@ -1,13 +1,14 @@
 package com.example.testapi.config;
 
-import com.example.testapi.entity.Tutor;
-import com.example.testapi.repository.TutorRepository;
+import java.util.Arrays;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
-import java.util.Arrays;
-import java.util.List;
+import com.example.testapi.entity.Tutor;
+import com.example.testapi.repository.TutorRepository;
 
 @Component
 public class DataSeeder implements CommandLineRunner {
@@ -17,8 +18,14 @@ public class DataSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        // Only seed if the table is empty
-        if (tutorRepository.count() > 0) return;
+        try {
+            // Only seed if the table is empty
+            if (tutorRepository.count() > 0) return;
+        } catch (Exception e) {
+            // If count fails (e.g., prepared statement error, table doesn't exist yet), skip seeding
+            System.out.println("⚠️ Skipping DataSeeder: " + e.getMessage());
+            return;
+        }
 
         Tutor t1 = new Tutor();
         t1.setName("Dr. Sarah Chen");

@@ -1,14 +1,21 @@
 package com.example.testapi.entity;
 
-import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.UUID;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "locations")
 public class Location {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(nullable = false)
     private String id;
 
     @Column(nullable = false, unique = true)
@@ -31,6 +38,9 @@ public class Location {
 
     @PrePersist
     protected void onCreate() {
+        if (id == null || id.isBlank()) {
+            id = UUID.randomUUID().toString();
+        }
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }

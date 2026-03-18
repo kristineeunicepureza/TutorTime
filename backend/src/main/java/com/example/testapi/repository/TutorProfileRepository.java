@@ -1,14 +1,14 @@
 package com.example.testapi.repository;
 
+import com.example.testapi.entity.TutorProfile;
 import java.util.Optional;
-
+import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import com.example.testapi.entity.TutorProfile;
-
 @Repository
-public interface TutorProfileRepository extends JpaRepository<TutorProfile, String> {
-    Optional<TutorProfile> findByUserId(String userId);
+public interface TutorProfileRepository extends JpaRepository<TutorProfile, UUID> {
+    Optional<TutorProfile> findByUserId(UUID userId);
+    java.util.List<TutorProfile> findAllByUserId(UUID userId);
     long countByApprovalStatus(String approvalStatus);
 }

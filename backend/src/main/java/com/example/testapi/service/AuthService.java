@@ -4,6 +4,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,6 +27,14 @@ import com.example.testapi.repository.UserRepository;
 @Service
 public class AuthService {
 
+    private UUID parseUuid(String id, String fieldName) {
+        try {
+            return UUID.fromString(id);
+        } catch (Exception e) {
+            throw new RuntimeException("Invalid " + fieldName + " format");
+        }
+    }
+
     @Value("${supabase.url}")
     private String supabaseUrl;
 
@@ -45,6 +54,7 @@ public class AuthService {
      * Login via Supabase Auth REST API.
      * Returns user info (name and role) along with token.
      */
+    @SuppressWarnings("unchecked")
     public AuthResponse login(String email, String password) {
         String url = supabaseUrl + "/auth/v1/token?grant_type=password";
         HttpHeaders headers = new HttpHeaders();
@@ -57,80 +67,131 @@ public class AuthService {
             if (response != null && response.get("access_token") != null) {
                 String token = response.get("access_token").toString();
 
-                // Extract user ID from token and fetch user details
                 try {
                     String uid = verifyTokenAndGetUid(token);
                     System.out.println("✅ Login for UID: " + uid);
-                    Optional<User> userOpt = userRepository.findById(uid);
+                    Optional<User> userOpt = userRepository.findById(parseUuid(uid, "userId"));
 
-                    AuthResponse.UserInfo userInfo = null;
+                    AuthResponse.UserInfo userInfo;
                     if (userOpt.isPresent()) {
                         User user = userOpt.get();
                         System.out.println("✅ Found in local DB - Role: " + user.getRole() + ", Name: " + user.getFullName());
 
-                        // For existing users, verify and potentially sync role if needed
                         String verifiedRole = user.getRole();
 
-                        // Check if this email should be ADMIN based on environment or config
+                        // Check if this email should be ADMIN
                         if ("admin@tutortime.com".equalsIgnoreCase(email) && !"ADMIN".equals(verifiedRole)) {
                             System.out.println("🔄 Admin email detected but stored as " + verifiedRole + ". Updating to ADMIN...");
                             user.setRole("ADMIN");
                             userRepository.save(user);
                             verifiedRole = "ADMIN";
                         }
+                        
+                        // Check if user has a TutorProfile - if so, they're a TUTOR even if DB says STUDENT
+                        if (!"TUTOR".equals(verifiedRole) && !"ADMIN".equals(verifiedRole)) {
+                            Optional<TutorProfile> tutorProfile = tutorProfileRepository.findByUserId(parseUuid(uid, "userId"));
+                            if (tutorProfile.isPresent()) {
+                                System.out.println("🔄 User has TutorProfile but role is " + verifiedRole + ". Updating to TUTOR...");
+                                user.setRole("TUTOR");
+                                userRepository.save(user);
+                                verifiedRole = "TUTOR";
+                            }
+                        }
 
                         userInfo = new AuthResponse.UserInfo(user.getFullName(), verifiedRole);
                     } else {
-                        // If not in local database, sync from Supabase and determine role
-                        System.out.println("⚠️ Not in local DB, checking for tutor profile...");
-                        userInfo = fetchUserFromSupabase(uid, email);
-
-                        // If we found user info, sync them to local database
-                        if (userInfo != null && userInfo.getRole() != null) {
-                            System.out.println("✅ Syncing user to local DB with role: " + userInfo.getRole());
-                            User newUser = new User();
-                            newUser.setId(uid);
-                            newUser.setEmail(email);
-                            newUser.setFullName(userInfo.getName());
-                            newUser.setPasswordHash("auth_managed_by_supabase");
-                            newUser.setRole(userInfo.getRole());
-                            newUser.setVerified(true);
-                            userRepository.save(newUser);
-                            System.out.println("✅ User synced to local database");
-
-                            // If tutor, also create local TutorProfile for availability management
-                            if ("TUTOR".equals(userInfo.getRole())) {
-                                Optional<TutorProfile> existingTutorProfile = tutorProfileRepository.findByUserId(uid);
-                                if (existingTutorProfile.isEmpty()) {
-                                    TutorProfile tutorProfile = new TutorProfile();
-                                    tutorProfile.setUserId(uid);
-                                    tutorProfile.setApprovalStatus("PENDING");
-                                    tutorProfile.setRating(0.0);
-                                    tutorProfileRepository.save(tutorProfile);
-                                    System.out.println("📋 Tutor profile created with PENDING status. Admin approval required.");
+                        // If not in local database by UID, try to find by email (UUID mismatch case)
+                        System.out.println("⚠️ Not in local DB by UID, checking by email...");
+                        Optional<User> userByEmail = userRepository.findByEmail(email);
+                        
+                        if (userByEmail.isPresent()) {
+                            User existingUser = userByEmail.get();
+                            System.out.println("✅ Found in local DB by email - Role: " + existingUser.getRole() + ", Name: " + existingUser.getFullName());
+                            
+                            String verifiedRole = existingUser.getRole();
+                            
+                            // Check if this email should be ADMIN (even if DB says different)
+                            if ("admin@tutortime.com".equalsIgnoreCase(email) && !"ADMIN".equals(verifiedRole)) {
+                                System.out.println("🔄 Admin email detected but stored as " + verifiedRole + ". Updating to ADMIN...");
+                                existingUser.setRole("ADMIN");
+                                userRepository.save(existingUser);
+                                verifiedRole = "ADMIN";
+                            }
+                            
+                            // Check if user has a TutorProfile - if so, they're a TUTOR even if DB says STUDENT
+                            if (!"TUTOR".equals(verifiedRole) && !"ADMIN".equals(verifiedRole)) {
+                                Optional<TutorProfile> tutorProfile = tutorProfileRepository.findByUserId(parseUuid(existingUser.getId(), "userId"));
+                                if (tutorProfile.isPresent()) {
+                                    System.out.println("🔄 User has TutorProfile but role is " + verifiedRole + ". Updating to TUTOR...");
+                                    existingUser.setRole("TUTOR");
+                                    userRepository.save(existingUser);
+                                    verifiedRole = "TUTOR";
                                 }
                             }
-
-                            // Ensure Supabase profiles are synced
-                            syncSupabaseProfiles(uid, userInfo.getRole(), email);
+                            
+                            userInfo = new AuthResponse.UserInfo(existingUser.getFullName(), verifiedRole);
                         } else {
-                            System.out.println("❌ Could not determine role, defaulting to STUDENT");
-                            userInfo = new AuthResponse.UserInfo("User", "STUDENT");
-                            syncSupabaseProfiles(uid, "STUDENT", email);
+                            // User truly not in database, fetch role from Supabase
+                            System.out.println("⚠️ Not found by UID or email, checking for tutor profile...");
+                            userInfo = fetchUserFromSupabase(uid, email);
+
+                            // If we found user info, sync them to local database
+                            if (userInfo != null && userInfo.getRole() != null) {
+                                System.out.println("✅ Syncing user to local DB with role: " + userInfo.getRole());
+                                User newUser = new User();
+                                newUser.setId(uid);
+                                newUser.setEmail(email);
+                                newUser.setFullName(userInfo.getName());
+                                newUser.setPasswordHash("auth_managed_by_supabase");
+                                newUser.setRole(userInfo.getRole());
+                                newUser.setVerified(true);
+                                try {
+                                    userRepository.save(newUser);
+                                    System.out.println("✅ User synced to local database");
+                                } catch (Exception saveError) {
+                                    System.out.println("⚠️ Error saving user (likely duplicate): " + saveError.getMessage());
+                                    Optional<User> fallbackUser = userRepository.findByEmail(email);
+                                    if (fallbackUser.isPresent()) {
+                                        System.out.println("✅ Using existing user record from DB");
+                                        userInfo = new AuthResponse.UserInfo(fallbackUser.get().getFullName(), fallbackUser.get().getRole());
+                                    }
+                                }
+
+                                // If tutor, create local TutorProfile for availability management
+                                if ("TUTOR".equals(userInfo.getRole())) {
+                                    Optional<TutorProfile> existingTutorProfile = tutorProfileRepository.findByUserId(parseUuid(uid, "userId"));
+                                    if (existingTutorProfile.isEmpty()) {
+                                        TutorProfile tutorProfile = new TutorProfile();
+                                        tutorProfile.setUserId(uid);
+                                        tutorProfile.setApprovalStatus("PENDING");
+                                        tutorProfile.setRating(0.0);
+                                        tutorProfileRepository.save(tutorProfile);
+                                        System.out.println("📋 Tutor profile created with PENDING status. Admin approval required.");
+                                    }
+                                }
+
+                                syncSupabaseProfiles(uid, userInfo.getRole(), email);
+                            } else {
+                                System.out.println("❌ Could not determine role, defaulting to STUDENT");
+                                userInfo = new AuthResponse.UserInfo("User", "STUDENT");
+                                syncSupabaseProfiles(uid, "STUDENT", email);
+                            }
                         }
                     }
 
                     return new AuthResponse(true, "Login successful", token, userInfo);
                 } catch (Exception e) {
-                    // Still return success with token, but without user info
-                    return new AuthResponse(true, "Login successful", token);
+                    System.err.println("⚠️ Error during login: " + e.getMessage());
+                    AuthResponse.UserInfo defaultUserInfo = "admin@tutortime.com".equalsIgnoreCase(email) 
+                        ? new AuthResponse.UserInfo("Admin User", "ADMIN")
+                        : new AuthResponse.UserInfo("User", "STUDENT");
+                    return new AuthResponse(true, "Login successful", token, defaultUserInfo);
                 }
             }
             return new AuthResponse(false, "Invalid credentials", null);
         } catch (HttpClientErrorException e) {
             return new AuthResponse(false, "Authentication failed: " + e.getResponseBodyAsString(), null);
         } catch (org.springframework.web.client.RestClientException e) {
-            // covers I/O errors such as DNS lookup failures
             return new AuthResponse(false, "Unable to reach authentication server: " + e.getMessage(), null);
         }
     }
@@ -152,7 +213,7 @@ public class AuthService {
             System.out.println("🔍 Checking local tutor_profiles for UID: " + uid);
 
             // First check if user has a tutor_profiles entry in our local database
-            Optional<TutorProfile> tutorProfile = tutorProfileRepository.findByUserId(uid);
+            Optional<TutorProfile> tutorProfile = tutorProfileRepository.findByUserId(parseUuid(uid, "userId"));
             if (tutorProfile.isPresent()) {
                 System.out.println("✅ Found in local tutor_profiles, user is a TUTOR");
                 return new AuthResponse.UserInfo("Tutor User", "TUTOR");
@@ -194,7 +255,7 @@ public class AuthService {
 
         } catch (Exception e) {
             System.out.println("⚠ Error checking tutor profile: " + e.getMessage());
-            e.printStackTrace();
+
         }
         return null;
     }
@@ -203,6 +264,7 @@ public class AuthService {
      * Register user using Supabase Auth and create user record in database.
      * Accepts userType (STUDENT or TUTOR) to properly configure the account.
      */
+    @SuppressWarnings("unchecked")
     public AuthResponse register(String email, String password, String fullName, String userType) {
         if (email == null || email.isBlank()) {
             return new AuthResponse(false, "Registration failed: email is required", null);
@@ -247,42 +309,56 @@ public class AuthService {
             Map<String, Object> response = restTemplate.postForObject(url, entity, Map.class);
 
             if (response != null && response.get("user") != null) {
-                @SuppressWarnings("unchecked")
                 Map<String, Object> userMap = (Map<String, Object>) response.get("user");
                 String uid = userMap.get("id").toString();
                 
                 // Save user to Supabase via REST API; returns the canonical UID (may differ on email conflict)
                 String resolvedUid = saveUserToSupabase(uid, normalizedEmail, fullName, userType);
 
-                // Also save to local H2 for offline support
-                User user = new User();
-                user.setId(resolvedUid);
-                user.setEmail(normalizedEmail);
-                user.setFullName(fullName);
-                user.setPasswordHash(password);
-                user.setRole(userType);
-                user.setVerified(true);
-                userRepository.save(user);
+                try {
+                    // Also save to local H2 for offline support
+                    User user = new User();
+                    user.setId(resolvedUid);
+                    user.setEmail(normalizedEmail);
+                    user.setFullName(fullName);
+                    user.setPasswordHash(password);
+                    user.setRole(userType);
+                    user.setVerified(true);
+                    userRepository.save(user);
+                    System.out.println("✅ User saved to local database: " + normalizedEmail);
+                } catch (Exception dbError) {
+                    System.err.println("⚠️ Failed to save user to local database: " + dbError.getMessage());
+                    return new AuthResponse(false, "Registration failed: Could not save user to database. " + dbError.getMessage(), null);
+                }
 
                 // If registering as TUTOR, create TutorProfile locally
                 if (userType.equals("TUTOR")) {
-                    TutorProfile tutorProfile = new TutorProfile();
-                    tutorProfile.setUserId(resolvedUid);
-                    tutorProfile.setApprovalStatus("PENDING");
-                    tutorProfile.setRating(0.0);
-                    tutorProfileRepository.save(tutorProfile);
-
-                    // Don't create Supabase tutor_profiles yet - tutors must choose a subject first
-                    System.out.println("📋 Tutor profile created with PENDING status. Admin approval required.");
+                    try {
+                        TutorProfile tutorProfile = new TutorProfile();
+                        tutorProfile.setUserId(resolvedUid);
+                        tutorProfile.setApprovalStatus("PENDING");
+                        tutorProfile.setRating(0.0);
+                        tutorProfile.setHourlyRate(0.0);  // Default hourly rate
+                        tutorProfile.setTotalSessions(0);
+                        tutorProfileRepository.save(tutorProfile);
+                        System.out.println("📋 Tutor profile created with PENDING status. Admin approval required.");
+                    } catch (Exception tutorError) {
+                        System.err.println("⚠️ Failed to create tutor profile: " + tutorError.getMessage());
+                        return new AuthResponse(false, "Registration failed: Could not create tutor profile. " + tutorError.getMessage(), null);
+                    }
                 } else {
-                    // If registering as STUDENT, create StudentProfile in Supabase
-                    saveStudentProfileToSupabase(resolvedUid);
-                    System.out.println("✓ Student profile created for: " + normalizedEmail);
+                    try {
+                        // If registering as STUDENT, create StudentProfile in Supabase
+                        saveStudentProfileToSupabase(resolvedUid);
+                        System.out.println("✓ Student profile created for: " + normalizedEmail);
+                    } catch (Exception studentError) {
+                        System.err.println("⚠️ Failed to create student profile: " + studentError.getMessage());
+                        // Continue even if student profile creation fails - not critical
+                    }
                 }
 
                 Object token = response.get("access_token");
                 if (token == null && response.get("session") instanceof Map) {
-                    @SuppressWarnings("unchecked")
                     Map<String, Object> sessionMap = (Map<String, Object>) response.get("session");
                     token = sessionMap.get("access_token");
                 }
@@ -300,6 +376,10 @@ public class AuthService {
             return new AuthResponse(false, "Registration failed: " + e.getResponseBodyAsString(), null);
         } catch (org.springframework.web.client.RestClientException e) {
             return new AuthResponse(false, "Unable to reach authentication server: " + e.getMessage(), null);
+        } catch (Exception e) {
+            System.err.println("❌ Unexpected error during registration: " + e.getMessage());
+            e.printStackTrace();
+            return new AuthResponse(false, "Registration failed: " + e.getMessage(), null);
         }
     }
 
@@ -375,6 +455,7 @@ public class AuthService {
     /**
      * Save tutor profile to Supabase tutor_profiles table
      */
+    @SuppressWarnings("unused")
     private void saveTutorProfileToSupabase(String userId) {
         try {
             String url = supabaseUrl + "/rest/v1/tutor_profiles";
@@ -529,7 +610,8 @@ public class AuthService {
             headers.set("apikey", apiKey);
             HttpEntity<Void> entity = new HttpEntity<>(headers);
             try {
-                Map response = restTemplate.exchange(url, org.springframework.http.HttpMethod.GET, entity, Map.class).getBody();
+                @SuppressWarnings("unchecked")
+                Map<String, Object> response = restTemplate.exchange(url, org.springframework.http.HttpMethod.GET, entity, Map.class).getBody();
                 if (response != null && response.get("id") != null) {
                     return response.get("id").toString();
                 }
@@ -543,7 +625,7 @@ public class AuthService {
     }
 
     public ProfileResponse getProfile(String uid) {
-        Optional<User> opt = userRepository.findById(uid);
+        Optional<User> opt = userRepository.findById(parseUuid(uid, "userId"));
         if (opt.isPresent()) {
             User user = opt.get();
             ProfileResponse res = new ProfileResponse();
@@ -558,7 +640,7 @@ public class AuthService {
     }
 
     public boolean updateProfile(String uid, EditProfileRequest request) {
-        Optional<User> opt = userRepository.findById(uid);
+        Optional<User> opt = userRepository.findById(parseUuid(uid, "userId"));
         if (opt.isPresent()) {
             User user = opt.get();
             if (request.getDisplayName() != null) {
@@ -585,6 +667,7 @@ public class AuthService {
         }
 
         // 3. Extract user ID locally from token (no network call)
+        @SuppressWarnings("unused")
         String uid = extractUserIdFromJwt(userToken);
 
         // 4. Since we're using local H2 database, just return success
@@ -594,9 +677,8 @@ public class AuthService {
     }
 
     public String uploadPhoto(String uid, byte[] bytes) {
-        Optional<User> opt = userRepository.findById(uid);
+        Optional<User> opt = userRepository.findById(parseUuid(uid, "userId"));
         if (opt.isPresent()) {
-            User user = opt.get();
             // In production, upload to cloud storage and save URL
             // For now, we'll acknowledge the upload
             return "photo upload endpoint ready";

@@ -1,7 +1,16 @@
 package com.example.testapi.entity;
 
-import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.UUID;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "student_profiles")
@@ -9,10 +18,11 @@ public class StudentProfile {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+    @Column(columnDefinition = "uuid")
+    private UUID id;
 
-    @Column(nullable = false, unique = true)
-    private String userId;  // Foreign key to User entity
+    @Column(nullable = false, unique = true, columnDefinition = "uuid")
+    private UUID userId;  // Foreign key to User entity
 
     private String schoolName;
     private String gradeLevel;
@@ -41,11 +51,11 @@ public class StudentProfile {
     }
 
     // Getters and Setters
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
 
-    public String getUserId() { return userId; }
-    public void setUserId(String userId) { this.userId = userId; }
+    public UUID getUserId() { return userId; }
+    public void setUserId(UUID userId) { this.userId = userId; }
 
     public String getSchoolName() { return schoolName; }
     public void setSchoolName(String schoolName) { this.schoolName = schoolName; }

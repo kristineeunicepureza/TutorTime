@@ -1,6 +1,7 @@
 package com.example.testapi.entity;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -13,7 +14,8 @@ import jakarta.persistence.Table;
 @Table(name = "users")
 public class User {
     @Id
-    private String id; // UUID from Supabase auth
+    @Column(columnDefinition = "uuid")
+    private UUID id; // UUID from Supabase auth
 
     @Column(nullable = false, unique = true)
     private String email;
@@ -51,8 +53,8 @@ public class User {
     }
 
     // Getters and Setters
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public String getId() { return id == null ? null : id.toString(); }
+    public void setId(String id) { this.id = id == null ? null : UUID.fromString(id); }
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }

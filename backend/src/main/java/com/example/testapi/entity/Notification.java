@@ -1,14 +1,20 @@
 package com.example.testapi.entity;
 
-import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.UUID;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "notifications")
 public class Notification {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(nullable = false)
     private String id;
 
     @Column(nullable = false)
@@ -21,6 +27,7 @@ public class Notification {
     private String message;
 
     private String relatedBookingId;
+
     private String relatedTutorId;
 
     @Column(nullable = false)
@@ -34,6 +41,9 @@ public class Notification {
 
     @PrePersist
     protected void onCreate() {
+        if (id == null || id.isBlank()) {
+            id = UUID.randomUUID().toString();
+        }
         createdAt = LocalDateTime.now();
     }
 

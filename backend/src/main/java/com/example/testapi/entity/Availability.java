@@ -2,6 +2,7 @@ package com.example.testapi.entity;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -18,10 +19,11 @@ public class Availability {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+    @Column(columnDefinition = "uuid")
+    private UUID id;
 
-    @Column(nullable = false)
-    private String tutorId;  // Foreign key to TutorProfile
+    @Column(nullable = false, columnDefinition = "uuid")
+    private UUID tutorId;  // Foreign key to TutorProfile
 
     @Column(nullable = false)
     private String dayOfWeek;  // "MONDAY", "TUESDAY", etc.
@@ -59,11 +61,11 @@ public class Availability {
     }
 
     // Getters and Setters
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public String getId() { return id == null ? null : id.toString(); }
+    public void setId(String id) { this.id = id == null ? null : UUID.fromString(id); }
 
-    public String getTutorId() { return tutorId; }
-    public void setTutorId(String tutorId) { this.tutorId = tutorId; }
+    public String getTutorId() { return tutorId == null ? null : tutorId.toString(); }
+    public void setTutorId(String tutorId) { this.tutorId = tutorId == null ? null : UUID.fromString(tutorId); }
 
     public String getDayOfWeek() { return dayOfWeek; }
     public void setDayOfWeek(String dayOfWeek) { this.dayOfWeek = dayOfWeek; }
