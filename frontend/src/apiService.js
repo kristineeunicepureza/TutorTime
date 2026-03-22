@@ -8,6 +8,23 @@ const API_BASE_URL = process.env.NODE_ENV === 'production'
 console.log('API Mode:', process.env.NODE_ENV);
 console.log('API Base URL:', API_BASE_URL);
 
+const getStoredAuthToken = () => {
+  return (
+    localStorage.getItem('authToken') ||
+    localStorage.getItem('token') ||
+    localStorage.getItem('accessToken') ||
+    sessionStorage.getItem('authToken') ||
+    sessionStorage.getItem('token') ||
+    sessionStorage.getItem('accessToken') ||
+    ''
+  );
+};
+
+// ✅ EXPORTED: Use in components that need manual token retrieval
+export { getStoredAuthToken };
+
+const isPublicEndpoint = (endpoint) => endpoint === '/login' || endpoint === '/register';
+
 /**
  * Helper function to make API requests with proper headers
  */
@@ -20,9 +37,11 @@ const makeRequest = async (endpoint, options = {}) => {
   };
 
   // Add Bearer token if available
-  const token = localStorage.getItem('authToken');
+  const token = getStoredAuthToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
+  } else if (!isPublicEndpoint(endpoint)) {
+    throw new Error('Session expired. Please log in again.');
   }
 
   try {
@@ -32,10 +51,16 @@ const makeRequest = async (endpoint, options = {}) => {
       credentials: 'include', // Include credentials for CORS
     });
 
-    const data = await response.json();
+    let data = null;
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
 
     if (!response.ok) {
-      throw new Error(data.message || `API Error: ${response.status}`);
+      const serverMessage = data?.message || data?.error || data?.details;
+      throw new Error(serverMessage || `API Error: ${response.status}`);
     }
 
     return data;
@@ -77,6 +102,9 @@ export const loginUser = async (email, password) => {
   // Store token in localStorage if provided
   if (response.token) {
     localStorage.setItem('authToken', response.token);
+    // Compatibility keys for older code paths
+    localStorage.setItem('token', response.token);
+    sessionStorage.setItem('authToken', response.token);
   }
 
   return response;
@@ -123,13 +151,16 @@ export const changePassword = async (newPassword) => {
  * POST /api/uploadPhoto
  */
 export const uploadPhoto = async (file) => {
-  const token = localStorage.getItem('authToken');
+  // ✅ FIXED: Use getStoredAuthToken() with fallback chain
+  const token = getStoredAuthToken();
   const formData = new FormData();
   formData.append('file', file);
 
   const headers = {};
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
+  } else if (!token) {
+    throw new Error('Session expired. Please log in again.');
   }
 
   try {
@@ -167,7 +198,7 @@ export const searchTutors = async (query) => {
 
 // ── Bookings ──────────────────────────────────────────────────────
 export const getMyBookings = async () => {
-  return makeRequest('/bookings/my', { method: 'GET' });
+  return makeRequest('/bookings/student', { method: 'GET' });
 };
 
 export const getTutorBookings = async () => {

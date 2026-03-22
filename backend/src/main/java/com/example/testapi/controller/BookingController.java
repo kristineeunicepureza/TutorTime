@@ -25,6 +25,13 @@ import com.example.testapi.service.BookingService;
 @RequestMapping("/api/bookings")
 public class BookingController {
 
+    private String safeMessage(Throwable e, String fallback) {
+        if (e == null || e.getMessage() == null || e.getMessage().isBlank()) {
+            return fallback;
+        }
+        return e.getMessage();
+    }
+
     @Autowired
     private BookingService bookingService;
 
@@ -38,22 +45,21 @@ public class BookingController {
     @PostMapping
     public ResponseEntity<Map<String, Object>> createBooking(
             @RequestHeader("Authorization") String authorization,
-            @RequestBody CreateBookingRequest request) throws Exception {
-        
-        String token = authService.extractToken(authorization);
-        String studentId = authService.verifyTokenAndGetUid(token);
-        
+            @RequestBody CreateBookingRequest request) {
         try {
+            String token = authService.extractToken(authorization);
+            String studentId = authService.verifyTokenAndGetUid(token);
+
             Booking booking = bookingService.createBooking(studentId, request);
             return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "Booking created successfully",
                 "data", booking
             ));
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
                 "success", false,
-                "message", e.getMessage()
+                "message", safeMessage(e, "Failed to create booking")
             ));
         }
     }
@@ -72,21 +78,38 @@ public class BookingController {
 
     /**
      * AC-4: Student views their booking history
+     * GET /api/bookings/student
+     */
+    @GetMapping("/student")
+    public Map<String, Object> getStudentBookings(
+            @RequestHeader("Authorization") String authorization) throws Exception {
+        try {
+            String token = authService.extractToken(authorization);
+            String studentId = authService.verifyTokenAndGetUid(token);
+
+            List<?> bookings = bookingService.getStudentBookingsWithDetails(studentId);
+
+            return Map.of(
+                "success", true,
+                "data", bookings
+            );
+        } catch (Exception e) {
+            return Map.of(
+                "success", false,
+                "data", List.of(),
+                "message", safeMessage(e, "Failed to fetch student bookings")
+            );
+        }
+    }
+
+    /**
+     * Backward-compatible alias for older frontend clients.
      * GET /api/bookings/my
      */
     @GetMapping("/my")
     public Map<String, Object> getMyBookings(
             @RequestHeader("Authorization") String authorization) throws Exception {
-        
-        String token = authService.extractToken(authorization);
-        String studentId = authService.verifyTokenAndGetUid(token);
-        
-        List<?> bookings = bookingService.getStudentBookingsWithDetails(studentId);
-        
-        return Map.of(
-            "success", true,
-            "data", bookings
-        );
+        return getStudentBookings(authorization);
     }
 
     /**
@@ -96,16 +119,23 @@ public class BookingController {
     @GetMapping("/tutor")
     public Map<String, Object> getTutorBookings(
             @RequestHeader("Authorization") String authorization) throws Exception {
-        
-        String token = authService.extractToken(authorization);
-        String tutorId = authService.verifyTokenAndGetUid(token);
-        
-        List<?> bookings = bookingService.getTutorBookingsWithDetails(tutorId);
-        
-        return Map.of(
-            "success", true,
-            "data", bookings
-        );
+        try {
+            String token = authService.extractToken(authorization);
+            String tutorId = authService.verifyTokenAndGetUid(token);
+
+            List<?> bookings = bookingService.getTutorBookingsWithDetails(tutorId);
+
+            return Map.of(
+                "success", true,
+                "data", bookings
+            );
+        } catch (Exception e) {
+            return Map.of(
+                "success", false,
+                "data", List.of(),
+                "message", safeMessage(e, "Failed to fetch tutor bookings")
+            );
+        }
     }
 
     /**
@@ -154,7 +184,7 @@ public class BookingController {
         } catch (RuntimeException e) {
             return Map.of(
                 "success", false,
-                "message", e.getMessage()
+                "message", safeMessage(e, "Failed to cancel booking")
             );
         }
     }

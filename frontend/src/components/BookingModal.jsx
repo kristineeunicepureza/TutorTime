@@ -12,46 +12,74 @@ function parseTimeToMinutes(value) {
     if (period === 'AM' && hours === 12) hours = 0;
     return (hours * 60) + minutes;
   }
-
   const hmMatch = text.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
-  if (hmMatch) {
-    const hours = Number(hmMatch[1]);
-    const minutes = Number(hmMatch[2]);
-    return (hours * 60) + minutes;
-  }
-
+  if (hmMatch) return (Number(hmMatch[1]) * 60) + Number(hmMatch[2]);
   return null;
 }
-
 function formatMinutesTo12Hour(totalMinutes) {
-  const hours24 = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  const period = hours24 >= 12 ? 'PM' : 'AM';
-  const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
-  return `${hours12}:${String(minutes).padStart(2, '0')} ${period}`;
+  const h24 = Math.floor(totalMinutes / 60);
+  const min = totalMinutes % 60;
+  const period = h24 >= 12 ? 'PM' : 'AM';
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${String(min).padStart(2, '0')} ${period}`;
 }
+function toIsoDate(value) {
+  if (!value) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return String(value);
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const d = String(parsed.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return '';
+}
+function normalizeTimeLabel(value) {
+  const mins = parseTimeToMinutes(value);
+  return mins == null ? String(value || '') : formatMinutesTo12Hour(mins);
+}
+function extractBookedTimes(slot, selectedDate) {
+  const booked = new Set();
+  const addTime = (timeValue) => {
+    const normalized = normalizeTimeLabel(timeValue);
+    if (normalized) booked.add(normalized);
+  };
 
+  if (!slot || typeof slot !== 'object') return booked;
+
+  (slot.bookedTimes || slot.bookedTimeSlots || slot.unavailableTimes || []).forEach(addTime);
+
+  if (slot.bookedTimesByDate && selectedDate && Array.isArray(slot.bookedTimesByDate[selectedDate])) {
+    slot.bookedTimesByDate[selectedDate].forEach(addTime);
+  }
+
+  if (Array.isArray(slot.bookings)) {
+    const targetDate = toIsoDate(selectedDate);
+    slot.bookings.forEach((booking) => {
+      const status = String(booking?.status || booking?.bookingStatus || '').toUpperCase();
+      if (status === 'CANCELLED') return;
+      const bookingDate = toIsoDate(booking?.bookingDate || booking?.date || booking?.slotStart || booking?.slot_start);
+      if (targetDate && bookingDate && bookingDate !== targetDate) return;
+      addTime(booking?.bookingTime || booking?.time || booking?.slotTime || booking?.slot_start);
+    });
+  }
+
+  return booked;
+}
 function generateSlotTimeOptions(slot) {
   if (!slot?.startTime || !slot?.endTime) return [];
-  const startMinutes = parseTimeToMinutes(slot.startTime);
-  const endMinutes = parseTimeToMinutes(slot.endTime);
-  if (startMinutes == null || endMinutes == null || startMinutes >= endMinutes) return [];
-
-  const options = [];
-  for (let cursor = startMinutes; cursor < endMinutes; cursor += 30) {
-    options.push(formatMinutesTo12Hour(cursor));
-  }
-  return options;
+  const s = parseTimeToMinutes(slot.startTime), e = parseTimeToMinutes(slot.endTime);
+  if (s == null || e == null || s >= e) return [];
+  const opts = [];
+  for (let c = s; c < e; c += 30) opts.push(formatMinutesTo12Hour(c));
+  return opts;
 }
-
 function isDateMatchingSlotDay(dateValue, slotDay) {
   if (!dateValue || !slotDay) return true;
-  const selected = new Date(`${dateValue}T00:00:00`);
-  if (Number.isNaN(selected.getTime())) return false;
-  const selectedDay = selected
-    .toLocaleDateString('en-US', { weekday: 'long' })
-    .toUpperCase();
-  return selectedDay === String(slotDay).toUpperCase();
+  const sel = new Date(`${dateValue}T00:00:00`);
+  if (Number.isNaN(sel.getTime())) return false;
+  return sel.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase() === String(slotDay).toUpperCase();
 }
 
 export function BookingModal({
@@ -61,126 +89,123 @@ export function BookingModal({
   bookForm,
   setBookForm,
   bookSuccess,
+  studentBookedTimes,
   onConfirmBooking,
   onClose,
 }) {
   if (!bookingTutor) return null;
-
   const timeOptions = selectedAvailability ? generateSlotTimeOptions(selectedAvailability) : [];
-  const dateMatchesSlotDay = isDateMatchingSlotDay(bookForm.date, selectedAvailability?.dayOfWeek);
-  const selectedLocationName =
-    (locationOptions || []).find(option => option.id === bookForm.locationId)?.name ||
-    'Unspecified';
+  const dateOk = isDateMatchingSlotDay(bookForm.date, selectedAvailability?.dayOfWeek);
+  const unavailableFromSlot = extractBookedTimes(selectedAvailability, bookForm.date);
+  const unavailableFromStudent = new Set((studentBookedTimes || []).map(normalizeTimeLabel));
+  const blockedTimes = new Set([...unavailableFromSlot, ...unavailableFromStudent]);
+  const locationName = (locationOptions || []).find(o => o.id === bookForm.locationId)?.name || 'Unspecified';
+  const canConfirm = bookForm.date && bookForm.time && bookForm.locationId && dateOk && !blockedTimes.has(normalizeTimeLabel(bookForm.time));
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2 className="modal-title">
-            {bookSuccess ? '🎉 Session Booked!' : 'Book a Session'}
-          </h2>
-          <button className="modal-close" onClick={onClose}>✕</button>
+    <div className="tt-modal-overlay" onClick={onClose}>
+      <div className="tt-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '490px' }}>
+
+        {/* Header */}
+        <div className="tt-modal-head" style={{ background: bookSuccess ? 'linear-gradient(135deg,#047857,#059669)' : 'linear-gradient(135deg,#2E71F0,#1045B8)' }}>
+          <h2 className="tt-modal-title">{bookSuccess ? '🎉 Session Booked!' : '📅 Book a Session'}</h2>
+          <button className="tt-modal-close" onClick={onClose}>✕</button>
         </div>
 
         {bookSuccess ? (
-          <div className="book-success">
-            <div className="book-success-icon">📅</div>
-            <p className="book-success-title">You're all set!</p>
-            <p className="book-success-sub">
-              Your session with <strong>{bookingTutor.name}</strong> on{' '}
-              <strong>{new Date(bookForm.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}</strong>{' '}
-              at <strong>{bookForm.time}</strong> has been confirmed.
+          <div style={{ padding: '40px 28px', textAlign: 'center' }}>
+            <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#ECFDF5', border: '3px solid #A7F3D0', margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '30px' }}>📅</div>
+            <p style={{ fontFamily: "'Sora',sans-serif", fontSize: '18px', fontWeight: 800, color: '#08213E', marginBottom: '8px' }}>You're all set!</p>
+            <p style={{ fontSize: '14px', color: '#374151', lineHeight: 1.65, marginBottom: '14px' }}>
+              Your session with <strong>{bookingTutor.name}</strong> on <strong>{new Date(bookForm.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}</strong> at <strong>{bookForm.time}</strong> has been confirmed.
             </p>
-            <div className="book-success-detail">📍 {selectedLocationName}</div>
-            <div className="modal-footer" style={{ borderTop: 'none', paddingTop: 0 }}>
-              <button className="btn-ghost" onClick={onClose}>Close</button>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#ECFDF5', border: '1.5px solid #A7F3D0', borderRadius: '10px', padding: '7px 16px', fontSize: '13px', color: '#047857', fontWeight: 600, marginBottom: '22px' }}>
+              📍 {locationName}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
+              {/* ✅ UPDATED: "Book Another" keeps modal open and resets form */}
+              <button className="tt-btn-primary" onClick={() => {
+                setBookForm({ date: '', time: '', locationId: '', notes: '' });
+                // Note: bookSuccess state is handled by parent, this is just to show we're ready for another booking
+              }} style={{ background: 'linear-gradient(135deg,#2E71F0,#1045B8)' }}>+ Book Another</button>
+              {/* "Done" closes the modal */}
+              <button className="tt-btn-ghost" onClick={onClose}>Done</button>
             </div>
           </div>
         ) : (
           <>
-            <div className="modal-body">
-              <div className="book-tutor-summary">
+            <div className="tt-modal-body">
+              {/* Tutor summary */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#F5F8FF', borderRadius: '12px', padding: '12px 14px', border: '1px solid #D5E3F7' }}>
                 <Avatar initials={bookingTutor.avatar} size={44} />
                 <div>
-                  <div className="book-tutor-name">{bookingTutor.name}</div>
-                  <div className="book-tutor-subject">{bookingTutor.subject} · {bookingTutor.rate}</div>
+                  <div style={{ fontSize: '14.5px', fontWeight: 700, color: '#08213E', marginBottom: '2px' }}>{bookingTutor.name}</div>
+                  <div style={{ fontSize: '12.5px', color: '#6B7280', fontWeight: 500 }}>{bookingTutor.subject} · {bookingTutor.rate}</div>
                 </div>
               </div>
 
-              <div className="modal-field">
-                <label className="modal-label">Subject</label>
-                <input
-                  className="modal-input"
-                  value={selectedAvailability?.subject || bookingTutor.subject || ''}
-                  readOnly
-                  style={{ color: 'var(--text-muted)', cursor: 'not-allowed' }}
-                />
+              {/* Subject */}
+              <div>
+                <label className="tt-label">Subject</label>
+                <input className="tt-input" value={selectedAvailability?.subject || bookingTutor.subject || ''} readOnly style={{ color: '#9CA3AF', cursor: 'not-allowed', background: '#F1F5F9' }} />
               </div>
 
-              <div className="modal-field">
-                <label className="modal-label">Date <span className="required">*</span></label>
-                <input
-                  className="modal-input"
-                  type="date"
-                  min={new Date().toISOString().split('T')[0]}
-                  value={bookForm.date}
-                  onChange={e => setBookForm({ ...bookForm, date: e.target.value })}
-                />
+              {/* Date */}
+              <div>
+                <label className="tt-label">Date <span style={{ color: '#DC2626' }}>*</span></label>
+                <input className="tt-input" type="date" min={new Date().toISOString().split('T')[0]} value={bookForm.date} onChange={e => setBookForm({ ...bookForm, date: e.target.value })} />
                 {selectedAvailability?.dayOfWeek && (
-                  <div style={{ marginTop: 6, fontSize: 12, color: dateMatchesSlotDay ? '#6b7280' : '#dc2626' }}>
-                    {dateMatchesSlotDay
-                      ? `This slot is available only on ${selectedAvailability.dayOfWeek}.`
-                      : `Please pick a ${selectedAvailability.dayOfWeek} date.`}
+                  <div style={{ marginTop: 6, fontSize: 12, fontWeight: 500, color: dateOk ? '#047857' : '#DC2626', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {dateOk ? '✓' : '⚠️'} {dateOk ? `Available only on ${selectedAvailability.dayOfWeek}.` : `Please pick a ${selectedAvailability.dayOfWeek} date.`}
                   </div>
                 )}
               </div>
 
-              <div className="modal-field">
-                <label className="modal-label">Time <span className="required">*</span></label>
-                <select
-                  className="modal-input"
-                  value={bookForm.time}
-                  onChange={e => setBookForm({ ...bookForm, time: e.target.value })}
-                >
+              {/* Time */}
+              <div>
+                <label className="tt-label">Time <span style={{ color: '#DC2626' }}>*</span></label>
+                <select className="tt-input" value={bookForm.time} onChange={e => setBookForm({ ...bookForm, time: e.target.value })}>
                   <option value="">Select a time slot</option>
-                  {(timeOptions.length > 0 ? timeOptions : [bookForm.time].filter(Boolean)).map(option => (
-                    <option key={option} value={option}>{option}</option>
-                  ))}
+                  {(timeOptions.length > 0 ? timeOptions : [bookForm.time].filter(Boolean)).map((o) => {
+                    const normalized = normalizeTimeLabel(o);
+                    const blocked = blockedTimes.has(normalized);
+                    return (
+                      <option key={o} value={o} disabled={blocked}>
+                        {blocked ? `${o} (Booked)` : o}
+                      </option>
+                    );
+                  })}
                 </select>
+                {bookForm.date && blockedTimes.size > 0 && (
+                  <div style={{ marginTop: 6, fontSize: 12, fontWeight: 500, color: '#DC2626' }}>
+                    Booked slots are disabled.
+                  </div>
+                )}
               </div>
 
-              <div className="modal-field">
-                <label className="modal-label">Location</label>
-                <select
-                  className="modal-input"
-                  value={bookForm.locationId || ''}
-                  onChange={e => setBookForm({ ...bookForm, locationId: e.target.value })}
-                >
+              {/* Location */}
+              <div>
+                <label className="tt-label">Location</label>
+                <select className="tt-input" value={bookForm.locationId || ''} onChange={e => setBookForm({ ...bookForm, locationId: e.target.value })}>
                   <option value="">Select location</option>
-                  {(locationOptions || []).map(option => (
-                    <option key={option.id} value={option.id}>{option.name}</option>
-                  ))}
+                  {(locationOptions || []).map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
                 </select>
               </div>
 
-              <div className="modal-field">
-                <label className="modal-label">Notes <span className="optional">(optional)</span></label>
-                <textarea
-                  className="modal-input modal-textarea"
-                  placeholder="Topics you'd like to cover, questions to prepare, etc."
-                  value={bookForm.notes}
-                  onChange={e => setBookForm({ ...bookForm, notes: e.target.value })}
-                />
+              {/* Notes */}
+              <div>
+                <label className="tt-label">Notes <span style={{ color: '#9CA3AF', fontWeight: 500, fontSize: '11px', textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
+                <textarea className="tt-input modal-textarea" placeholder="Topics you'd like to cover, questions to prepare, etc." value={bookForm.notes} onChange={e => setBookForm({ ...bookForm, notes: e.target.value })} style={{ resize: 'vertical', minHeight: '80px', height: 'auto', lineHeight: 1.55 }} />
               </div>
             </div>
 
-            <div className="modal-footer">
-              <button className="btn-ghost" onClick={onClose}>Cancel</button>
+            <div className="tt-modal-footer">
+              <button className="tt-btn-ghost" onClick={onClose}>Cancel</button>
               <button
-                className="btn-primary"
+                className="tt-btn-primary"
                 onClick={onConfirmBooking}
-                disabled={!bookForm.date || !bookForm.time || !bookForm.locationId || !dateMatchesSlotDay}
-                style={{ opacity: (!bookForm.date || !bookForm.time || !bookForm.locationId || !dateMatchesSlotDay) ? 0.5 : 1 }}
+                disabled={!canConfirm}
+                style={{ opacity: canConfirm ? 1 : .5 }}
               >
                 Confirm Booking
               </button>

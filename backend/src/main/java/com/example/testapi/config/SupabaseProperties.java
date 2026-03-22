@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 public class SupabaseProperties {
     private String url;
     private ApiKey api = new ApiKey();
+    private String serviceKey; // maps to supabase.service.key in application.properties
 
     public static class ApiKey {
         private String key;
@@ -39,5 +40,13 @@ public class SupabaseProperties {
 
     public void setApi(ApiKey api) {
         this.api = api;
+    }
+
+    public String getServiceKey() {
+        return serviceKey;
+    }
+
+    public void setServiceKey(String serviceKey) {
+        this.serviceKey = serviceKey;
     }
 }

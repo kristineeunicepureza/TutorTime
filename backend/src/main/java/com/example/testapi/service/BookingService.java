@@ -287,8 +287,9 @@ public class BookingService {
         }
 
         User student = studentOpt.get();
-        if (!"STUDENT".equalsIgnoreCase(student.getRole())) {
-            throw new RuntimeException("Only students can book a tutor session");
+        String role = student.getRole() == null ? "" : student.getRole().trim();
+        if ("ADMIN".equalsIgnoreCase(role)) {
+            throw new RuntimeException("Admin accounts cannot book tutor sessions");
         }
 
         String studentProfileId = resolveStudentProfileId(studentId);
@@ -371,10 +372,8 @@ public class BookingService {
             throw new RuntimeException("Selected booking date/time must be in the future");
         }
 
-        LocalDateTime slotEnd = LocalDateTime.of(slotStart.toLocalDate(), availability.getEndTime());
-        if (!slotEnd.isAfter(slotStart)) {
-            slotEnd = slotEnd.plusDays(1);
-        }
+        // Each booking is a 30-minute session
+        LocalDateTime slotEnd = slotStart.plusMinutes(30);
 
         // Prevent double-booking only for the selected occurrence.
         List<Booking> existingBookings = bookingRepository.findByAvailabilityIdAndBookingStatus(
@@ -408,7 +407,42 @@ public class BookingService {
             throw new RuntimeException("Booking failed due to invalid linked record (tutor, student, availability, or location)");
         }
 
-        // AC-1: Mark slot as booked
+        // AC-1: Split the original availability into BEFORE / BOOKED(30min) / AFTER segments.
+        LocalTime originalStartTime = availability.getStartTime().withSecond(0).withNano(0);
+        LocalTime originalEndTime = availability.getEndTime().withSecond(0).withNano(0);
+        LocalTime bookedStartTime = selectedTime.withSecond(0).withNano(0);
+        LocalTime bookedEndTime = slotEnd.toLocalTime().withSecond(0).withNano(0);
+
+        // Before segment remains available.
+        if (bookedStartTime.isAfter(originalStartTime)) {
+            Availability before = new Availability();
+            before.setTutorId(availability.getTutorId());
+            before.setDayOfWeek(availability.getDayOfWeek());
+            before.setStartTime(originalStartTime);
+            before.setEndTime(bookedStartTime);
+            before.setSubject(availability.getSubject());
+            before.setIsRecurring(availability.getIsRecurring());
+            before.setIsBooked(false);
+            availabilityRepository.save(before);
+        }
+
+        // After segment remains available.
+        if (bookedEndTime.isBefore(originalEndTime)) {
+            Availability after = new Availability();
+            after.setTutorId(availability.getTutorId());
+            after.setDayOfWeek(availability.getDayOfWeek());
+            after.setStartTime(bookedEndTime);
+            after.setEndTime(originalEndTime);
+            after.setSubject(availability.getSubject());
+            after.setIsRecurring(availability.getIsRecurring());
+            after.setIsBooked(false);
+            availabilityRepository.save(after);
+        }
+
+        // Reuse the original row as the booked 30-minute segment for traceability.
+        availability.setStartTime(bookedStartTime);
+        availability.setEndTime(bookedEndTime);
+        availability.setIsRecurring(false);
         availability.setIsBooked(true);
         availabilityRepository.save(availability);
 
@@ -453,7 +487,12 @@ public class BookingService {
         // Backward compatibility for rows historically stored with userId instead of profileId.
         collected.addAll(bookingRepository.findByStudentIdOrderBySlotStartDesc(studentUserUuid));
 
-        return dedupeAndSortBySlotStartDesc(collected);
+        List<Booking> deduped = dedupeAndSortBySlotStartDesc(collected);
+        
+        // Hide cancelled bookings while preserving pending/confirmed/completed visibility.
+        return deduped.stream()
+            .filter(booking -> booking.getBookingStatus() == null || !"CANCELLED".equalsIgnoreCase(booking.getBookingStatus()))
+            .collect(java.util.stream.Collectors.toList());
     }
 
     /**
@@ -512,21 +551,45 @@ public class BookingService {
      * Tutor views their bookings
      */
     public List<Booking> getTutorBookings(String tutorId) {
-        UUID tutorUserUuid = parseUuid(tutorId, "tutorUserId");
+        if (tutorId == null || tutorId.isBlank()) {
+            return List.of();
+        }
+
+        UUID tutorUserUuid;
+        try {
+            tutorUserUuid = parseUuid(tutorId, "tutorUserId");
+        } catch (RuntimeException e) {
+            return List.of();
+        }
+
         List<Booking> collected = new ArrayList<>();
 
         // Include all profile ids tied to this user to handle legacy duplicate profile rows.
         List<TutorProfile> profiles = tutorProfileRepository.findAllByUserId(tutorUserUuid);
         for (TutorProfile profile : profiles) {
-            UUID tutorProfileUuid = parseUuid(profile.getId(), "tutorProfileId");
-            collected.addAll(bookingRepository.findByTutorIdOrderBySlotStartDesc(tutorProfileUuid));
-            collected.addAll(bookingRepository.findByTutorAvailabilityOwner(tutorProfileUuid));
+            String profileId = profile.getId();
+            if (profileId == null || profileId.isBlank()) {
+                continue;
+            }
+
+            try {
+                UUID tutorProfileUuid = parseUuid(profileId, "tutorProfileId");
+                collected.addAll(bookingRepository.findByTutorIdOrderBySlotStartDesc(tutorProfileUuid));
+                collected.addAll(bookingRepository.findByTutorAvailabilityOwner(tutorProfileUuid));
+            } catch (RuntimeException ignored) {
+                // Skip malformed legacy profile ids rather than failing the entire endpoint.
+            }
         }
 
         // Backward compatibility for rows that may have been stored using tutor userId.
         collected.addAll(bookingRepository.findByTutorIdOrderBySlotStartDesc(tutorUserUuid));
 
-        return dedupeAndSortBySlotStartDesc(collected);
+        List<Booking> deduped = dedupeAndSortBySlotStartDesc(collected);
+        
+        // Hide cancelled bookings while preserving pending/confirmed/completed visibility.
+        return deduped.stream()
+            .filter(booking -> booking.getBookingStatus() == null || !"CANCELLED".equalsIgnoreCase(booking.getBookingStatus()))
+            .collect(java.util.stream.Collectors.toList());
     }
 
     /**

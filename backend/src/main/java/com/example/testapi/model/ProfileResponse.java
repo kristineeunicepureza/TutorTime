@@ -4,46 +4,29 @@ public class ProfileResponse {
     private String uid;
     private String email;
     private String displayName;
-    private byte[] photo; // may be null
-    private String userType; // STUDENT or TUTOR
+    private byte[] photo;
+    private String photoUrl;   // URL from Supabase Storage
+    private String userType;
+    private String role;
 
-    public String getUid() {
-        return uid;
-    }
+    public String getUid() { return uid; }
+    public void setUid(String uid) { this.uid = uid; }
 
-    public void setUid(String uid) {
-        this.uid = uid;
-    }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
 
-    public String getEmail() {
-        return email;
-    }
+    public String getDisplayName() { return displayName; }
+    public void setDisplayName(String displayName) { this.displayName = displayName; }
 
-    public void setEmail(String email) {
-        this.email = email;
-    }
+    public byte[] getPhoto() { return photo; }
+    public void setPhoto(byte[] photo) { this.photo = photo; }
 
-    public String getDisplayName() {
-        return displayName;
-    }
+    public String getPhotoUrl() { return photoUrl; }
+    public void setPhotoUrl(String photoUrl) { this.photoUrl = photoUrl; }
 
-    public void setDisplayName(String displayName) {
-        this.displayName = displayName;
-    }
+    public String getUserType() { return userType; }
+    public void setUserType(String userType) { this.userType = userType; }
 
-    public byte[] getPhoto() {
-        return photo;
-    }
-
-    public void setPhoto(byte[] photo) {
-        this.photo = photo;
-    }
-
-    public String getUserType() {
-        return userType;
-    }
-
-    public void setUserType(String userType) {
-        this.userType = userType;
-    }
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
 }

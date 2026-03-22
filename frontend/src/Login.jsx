@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import './Login.css';
-import { loginUser } from './apiService';
+import { getUserProfile, loginUser } from './apiService';
 
 function Login({ onSwitchToSignUp, onLoginSuccess }) {
   const [email, setEmail] = useState('');
@@ -10,27 +10,57 @@ function Login({ onSwitchToSignUp, onLoginSuccess }) {
 
   const handleLogin = async () => {
     setError('');
+    const normalizedEmail = email.trim().toLowerCase();
 
-    if (email.trim() === '' || password.trim() === '') {
+    if (normalizedEmail === '' || password.trim() === '') {
       setError('Please enter both email and password.');
       return;
     }
 
-    if (!email.includes('@')) {
-      setError('Please enter a valid email address.');
+    if (!/^[a-z0-9._%+-]+@cit\.edu$/.test(normalizedEmail)) {
+      setError('Please use your CIT email address (@cit.edu).');
       return;
     }
 
     setLoading(true);
     try {
-      const response = await loginUser(email, password);
+      const response = await loginUser(normalizedEmail, password);
       console.log('📡 Full login response:', JSON.stringify(response, null, 2)); // Debug log
       // if backend indicates failure, surface message to user instead of silently ignoring
       if (response.success) {
         if (onLoginSuccess) {
-          const displayName = response.user?.name || response.displayName || email.split('@')[0];
-          const userRole = (response.user?.role || response.role || 'STUDENT').toUpperCase();
-          onLoginSuccess(email, displayName, userRole);
+          const displayName = response.user?.name || response.displayName || normalizedEmail.split('@')[0];
+          let userRole = (
+            response.user?.role ||
+            response.role ||
+            response.userRole ||
+            response.data?.role ||
+            ''
+          ).toString().toUpperCase();
+
+          // Some backend responses omit role on /login. Try /profile before deciding.
+          if (!userRole) {
+            try {
+              const profile = await getUserProfile();
+              userRole = (
+                profile?.role ||
+                profile?.userRole ||
+                profile?.data?.role ||
+                profile?.data?.userRole ||
+                ''
+              ).toString().toUpperCase();
+            } catch {
+              userRole = '';
+            }
+          }
+
+          if (!userRole) {
+            setError('Unable to determine your account role. Please contact support.');
+            setLoading(false);
+            return;
+          }
+
+          onLoginSuccess(normalizedEmail, displayName, userRole);
         }
       } else {
         // response.success === false -> show backend-provided message
@@ -82,7 +112,7 @@ function Login({ onSwitchToSignUp, onLoginSuccess }) {
           <span className="input-icon">✉</span>
           <input
             type="email"
-            placeholder="University Email (@edu)"
+            placeholder="University Email (@cit.edu)"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={loading}

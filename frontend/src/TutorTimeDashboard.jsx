@@ -398,7 +398,9 @@ function TutorTimeDashboard() {
               <div className="notif-panel">
                 <div className="notif-panel-header">Notifications</div>
                 {notifications.length === 0 ? (
-                  <div style={{ padding: '16px', textAlign: 'center', color: '#888' }}>No notifications</div>
+                  <div style={{ padding: '20px 16px', textAlign: 'center', color: 'var(--text-light)', fontSize: '13px' }}>
+                    <div style={{ fontSize: '24px', marginBottom: '6px' }}>🔔</div>No notifications
+                  </div>
                 ) : (
                   notifications.map(n => (
                     <div key={n.id} className={`notif-item ${n.read ? 'read' : 'unread'}`}>

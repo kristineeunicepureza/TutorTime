@@ -19,9 +19,22 @@ function App() {
     const savedUserName = localStorage.getItem('userName');
     const savedUserEmail = localStorage.getItem('userEmail');
     const savedUserRole = localStorage.getItem('userRole');
+    const savedAuthToken =
+      localStorage.getItem('authToken') ||
+      localStorage.getItem('token') ||
+      localStorage.getItem('accessToken') ||
+      sessionStorage.getItem('authToken') ||
+      sessionStorage.getItem('token') ||
+      sessionStorage.getItem('accessToken');
     
-    if (savedUserName && savedUserEmail && savedUserRole) {
-      const role = (savedUserRole || 'STUDENT').toUpperCase();
+    if (savedUserName && savedUserEmail && savedUserRole && savedAuthToken) {
+      const role = String(savedUserRole || '').toUpperCase();
+      if (!['ADMIN', 'TUTOR', 'STUDENT'].includes(role)) {
+        localStorage.removeItem('userName');
+        localStorage.removeItem('userEmail');
+        localStorage.removeItem('userRole');
+        return;
+      }
       setCurrentUser({ 
         name: savedUserName, 
         email: savedUserEmail, 
@@ -29,13 +42,21 @@ function App() {
       });
       setCurrentView('dashboard');
       console.log('✅ Restored user from localStorage:', { name: savedUserName, role });
+    } else if (savedUserName || savedUserEmail || savedUserRole) {
+      // Clear partial or expired session state and return to login.
+      localStorage.removeItem('userName');
+      localStorage.removeItem('userEmail');
+      localStorage.removeItem('userRole');
     }
   }, []);
 
   // ✅ FIXED: called by Login on success — now ensures role is uppercase
   const handleLoginSuccess = (email, displayName, userRole) => {
     const name = displayName || email.split('@')[0];
-    const role = (userRole || 'STUDENT').toUpperCase();
+    const role = String(userRole || '').toUpperCase();
+    if (!['ADMIN', 'TUTOR', 'STUDENT'].includes(role)) {
+      return;
+    }
     console.log('✅ Login successful! Name:', name, 'Role:', role, 'Raw userRole:', userRole);
     localStorage.setItem('userName', name);
     localStorage.setItem('userEmail', email);

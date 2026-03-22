@@ -1,5 +1,15 @@
 package com.example.testapi.service;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
 import com.example.testapi.entity.Subject;
 import com.example.testapi.entity.TutorProfile;
 import com.example.testapi.entity.User;
@@ -7,15 +17,18 @@ import com.example.testapi.model.TutorDetailResponse;
 import com.example.testapi.repository.SubjectRepository;
 import com.example.testapi.repository.TutorProfileRepository;
 import com.example.testapi.repository.UserRepository;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 
 @Service
 public class AdminService {
+
+    @Autowired
+    private TutorProfileRepository tutorProfileRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private SubjectRepository subjectRepository;
 
     private UUID parseUuid(String id, String fieldName) {
         try {
@@ -25,146 +38,122 @@ public class AdminService {
         }
     }
 
-    @Autowired
-    private TutorProfileRepository tutorProfileRepository;
-
-    @Autowired
-    private SubjectRepository subjectRepository;
-
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private NotificationService notificationService;
-
-    /**
-     * AC-5: Get pending tutor verification requests with user details
-     */
     public List<TutorDetailResponse> getPendingTutorRequests() {
-        List<TutorProfile> allTutors = tutorProfileRepository.findAll();
-        List<TutorDetailResponse> pending = new ArrayList<>();
+        List<TutorProfile> pendingProfiles = tutorProfileRepository.findAll().stream()
+            .filter(profile -> "PENDING".equalsIgnoreCase(profile.getApprovalStatus()))
+            .sorted(Comparator.comparing(TutorProfile::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+            .toList();
 
-        for (TutorProfile tutor : allTutors) {
-            if ("PENDING".equals(tutor.getApprovalStatus())) {
-                Optional<User> userOpt = userRepository.findById(parseUuid(tutor.getUserId(), "userId"));
-                String name = userOpt.map(User::getFullName).orElse("Tutor application pending");
-                String email = userOpt.map(User::getEmail).orElse("Email unavailable");
+        List<TutorDetailResponse> responses = new ArrayList<>();
+        for (TutorProfile profile : pendingProfiles) {
+            Optional<User> userOpt = userRepository.findById(parseUuid(profile.getUserId(), "userId"));
+            String name = userOpt.map(User::getFullName).orElse("Unknown User");
+            String email = userOpt.map(User::getEmail).orElse(null);
 
-                TutorDetailResponse detail = new TutorDetailResponse(
-                    tutor.getId(),
-                    tutor.getUserId(),
-                    name,
-                    email,
-                    tutor.getBio(),
-                    tutor.getHourlyRate(),
-                    tutor.getSpecialization(),
-                    tutor.getYearsOfExperience(),
-                    tutor.getRating(),
-                    tutor.getApprovalStatus(),
-                    tutor.getCreatedAt()
-                );
-                pending.add(detail);
-            }
+            responses.add(new TutorDetailResponse(
+                profile.getId(),
+                profile.getUserId(),
+                name,
+                email,
+                profile.getBio(),
+                profile.getHourlyRate(),
+                profile.getSpecialization(),
+                profile.getYearsOfExperience(),
+                profile.getRating(),
+                profile.getApprovalStatus(),
+                profile.getCreatedAt()
+            ));
         }
 
-        return pending;
+        return responses;
     }
 
-    /**
-     * AC-5: Approve a tutor
-     * Updates status to APPROVED and sends notification
-     */
     public TutorProfile approveTutor(String tutorId) {
-        Optional<TutorProfile> tutorOpt = tutorProfileRepository.findById(parseUuid(tutorId, "tutorId"));
-        if (tutorOpt.isEmpty()) {
-            throw new RuntimeException("Tutor not found");
-        }
+        TutorProfile profile = tutorProfileRepository.findById(parseUuid(tutorId, "tutorId"))
+            .orElseThrow(() -> new RuntimeException("Tutor profile not found"));
 
-        TutorProfile tutor = tutorOpt.get();
-        tutor.setApprovalStatus("APPROVED");
-        tutor.setVerified(true);
-        TutorProfile updated = tutorProfileRepository.save(tutor);
+        profile.setApprovalStatus("APPROVED");
+        profile.setVerified(true);
+        TutorProfile saved = tutorProfileRepository.save(profile);
 
-        // AC-5: Send notification to tutor
-        notificationService.sendApprovalNotification(
-            tutor.getUserId(),
-            "Congratulations! Your tutor profile has been approved. You can now manage your availability and accept bookings from students."
-        );
+        userRepository.findById(parseUuid(profile.getUserId(), "userId")).ifPresent(user -> {
+            if (!"ADMIN".equalsIgnoreCase(user.getRole())) {
+                user.setRole("TUTOR");
+                userRepository.save(user);
+            }
+        });
 
-        return updated;
+        return saved;
     }
 
-    /**
-     * Reject a tutor
-     */
     public TutorProfile rejectTutor(String tutorId, String reason) {
-        Optional<TutorProfile> tutorOpt = tutorProfileRepository.findById(parseUuid(tutorId, "tutorId"));
-        if (tutorOpt.isEmpty()) {
-            throw new RuntimeException("Tutor not found");
-        }
+        TutorProfile profile = tutorProfileRepository.findById(parseUuid(tutorId, "tutorId"))
+            .orElseThrow(() -> new RuntimeException("Tutor profile not found"));
 
-        TutorProfile tutor = tutorOpt.get();
-        tutor.setApprovalStatus("REJECTED");
-        tutor.setVerified(false);
-        TutorProfile updated = tutorProfileRepository.save(tutor);
-
-        // Send notification
-        notificationService.sendRejectionNotification(
-            tutor.getUserId(),
-            "Your tutor profile application has been rejected. Reason: " + reason
-        );
-
-        return updated;
+        profile.setApprovalStatus("REJECTED");
+        profile.setVerified(false);
+        return tutorProfileRepository.save(profile);
     }
 
-    /**
-     * Add a new subject to the system
-     */
+    public List<Subject> getAllSubjects() {
+        return subjectRepository.findByActive(true).stream()
+            .sorted(Comparator.comparing(Subject::getName, String.CASE_INSENSITIVE_ORDER))
+            .toList();
+    }
+
     public Subject addSubject(String name, String description) {
-        // Check if subject already exists
-        Optional<Subject> existing = subjectRepository.findByName(name);
-        if (existing.isPresent()) {
+        String normalizedName = normalizeName(name);
+        if (normalizedName.isEmpty()) {
+            throw new RuntimeException("Subject name is required");
+        }
+
+        boolean exists = subjectRepository.findAll().stream()
+            .anyMatch(subject -> normalizedName.equalsIgnoreCase(subject.getName()));
+        if (exists) {
             throw new RuntimeException("Subject already exists");
         }
 
         Subject subject = new Subject();
-        subject.setName(name);
-        subject.setDescription(description);
+        subject.setName(normalizedName);
+        subject.setDescription(description == null ? "" : description.trim());
         subject.setActive(true);
         return subjectRepository.save(subject);
     }
 
-    /**
-     * Get all available subjects
-     */
-    public List<Subject> getAllSubjects() {
-        return subjectRepository.findByActive(true);
-    }
-
-    /**
-     * Update a subject
-     */
     public Subject updateSubject(String subjectId, String name, String description) {
-        Optional<Subject> subjectOpt = subjectRepository.findById(parseUuid(subjectId, "subjectId"));
-        if (subjectOpt.isEmpty()) {
-            throw new RuntimeException("Subject not found");
+        Subject subject = subjectRepository.findById(parseUuid(subjectId, "subjectId"))
+            .orElseThrow(() -> new RuntimeException("Subject not found"));
+
+        String normalizedName = normalizeName(name);
+        if (normalizedName.isEmpty()) {
+            throw new RuntimeException("Subject name is required");
         }
 
-        Subject subject = subjectOpt.get();
-        subject.setName(name);
-        subject.setDescription(description);
+        boolean duplicateName = subjectRepository.findAll().stream()
+            .anyMatch(existing -> !existing.getId().equals(subject.getId())
+                && normalizedName.equalsIgnoreCase(existing.getName()));
+        if (duplicateName) {
+            throw new RuntimeException("Another subject with this name already exists");
+        }
+
+        subject.setName(normalizedName);
+        subject.setDescription(description == null ? "" : description.trim());
         return subjectRepository.save(subject);
     }
 
-    /**
-     * Deactivate a subject
-     */
     public void deactivateSubject(String subjectId) {
-        Optional<Subject> subjectOpt = subjectRepository.findById(parseUuid(subjectId, "subjectId"));
-        if (subjectOpt.isPresent()) {
-            Subject subject = subjectOpt.get();
-            subject.setActive(false);
-            subjectRepository.save(subject);
+        Subject subject = subjectRepository.findById(parseUuid(subjectId, "subjectId"))
+            .orElseThrow(() -> new RuntimeException("Subject not found"));
+
+        subject.setActive(false);
+        subjectRepository.save(subject);
+    }
+
+    private String normalizeName(String name) {
+        if (name == null) {
+            return "";
         }
+        return name.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT)
+            .replaceFirst("^.", name.trim().isEmpty() ? "" : name.trim().substring(0, 1).toUpperCase(Locale.ROOT));
     }
 }

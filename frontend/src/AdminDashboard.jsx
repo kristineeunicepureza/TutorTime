@@ -253,66 +253,76 @@ function AdminDashboard() {
 
   const renderContent = () => {
     if (activeNav === 'dashboard') {
+      const statCards = [
+        { value: pendingTutors.length,  label: 'Pending Verifications', icon: '⏳', bg: 'linear-gradient(140deg,#2E71F0,#1045B8)', iconBg: 'rgba(255,255,255,.20)', valColor: '#fff', lblColor: 'rgba(255,255,255,.75)', border: 'transparent' },
+        { value: verifiedTutors.length, label: 'Verified Tutors',       icon: '✓',  bg: '#fff', iconBg: 'var(--success-light)', valColor: 'var(--navy)', lblColor: 'var(--text-muted)', border: 'var(--border)' },
+        { value: subjects.length,       label: 'Academic Subjects',     icon: '📚', bg: '#fff', iconBg: 'var(--purple-light)',  valColor: 'var(--navy)', lblColor: 'var(--text-muted)', border: 'var(--border)' },
+        { value: systemLogs.length,     label: 'System Events',         icon: '📋', bg: '#fff', iconBg: 'var(--warning-light)', valColor: 'var(--navy)', lblColor: 'var(--text-muted)', border: '#FDE68A' },
+      ];
       return (
-        <div className="page-content">
+        <div className="page-content tt-a0">
           <div className="page-header">
-            <h1 className="page-title">Admin Dashboard 🛡️</h1>
-            <p className="page-subtitle">System management and monitoring overview.</p>
+            <div>
+              <h1 className="page-title">Admin Dashboard 🛡️</h1>
+              <p className="page-subtitle">System management and monitoring overview.</p>
+            </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' }}>
-            <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
-              <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--primary)' }}>
-                {pendingTutors.length}
+          {/* Stat Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '28px' }}>
+            {statCards.map((s, i) => (
+              <div key={i} className="stat-card" style={{ background: s.bg, borderColor: s.border, position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', top: '-26px', right: '-26px', width: '95px', height: '95px', borderRadius: '50%', background: i === 0 ? 'rgba(255,255,255,.09)' : 'rgba(21,88,214,.05)', pointerEvents: 'none' }} />
+                <div style={{ width: '40px', height: '40px', borderRadius: '11px', background: s.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', marginBottom: '14px' }}>{s.icon}</div>
+                <div style={{ fontFamily: "'Sora',sans-serif", fontSize: '30px', fontWeight: 800, color: s.valColor, lineHeight: 1, letterSpacing: '-0.5px', marginBottom: '5px' }}>{s.value}</div>
+                <div style={{ fontSize: '12.5px', fontWeight: 500, color: s.lblColor }}>{s.label}</div>
               </div>
-              <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>Pending Verifications</div>
-            </div>
-            <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
-              <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--success)' }}>
-                {verifiedTutors.length}
-              </div>
-              <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>Verified Tutors</div>
-            </div>
-            <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
-              <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--purple)' }}>
-                {subjects.length}
-              </div>
-              <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>Academic Subjects</div>
-            </div>
-            <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
-              <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--warning)' }}>
-                {systemLogs.length}
-              </div>
-              <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>System Events</div>
-            </div>
+            ))}
           </div>
 
           <div className="two-col">
+            {/* Recent Activities */}
             <div className="card">
-              <h2 className="section-title" style={{ marginBottom: 16 }}>Recent Activities</h2>
+              <div className="card-header">
+                <h2 className="section-title">
+                  <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px' }}>📋</div>
+                  Recent Activities
+                </h2>
+              </div>
               {systemLogs.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>No activity logs</div>
+                <div style={{ textAlign: 'center', padding: '28px 0', color: 'var(--text-light)', fontSize: '13px' }}>
+                  <div style={{ fontSize: '28px', marginBottom: '8px' }}>📭</div>No activity logs
+                </div>
               ) : (
                 systemLogs.slice(0, 5).map((log, idx) => (
-                  <div key={idx} style={{ paddingBottom: '12px', borderBottom: '1px solid var(--border)', fontSize: '13px' }}>
-                    <div style={{ fontWeight: 500 }}>{log.action}</div>
-                    <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '4px' }}>{log.timestamp}</div>
+                  <div key={idx} style={{ paddingBottom: '12px', borderBottom: '1px solid var(--primary-light)', fontSize: '13px', marginBottom: '12px' }}>
+                    <div style={{ fontWeight: 600, color: 'var(--navy)' }}>{log.action}</div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '11.5px', marginTop: '3px' }}>{log.timestamp}</div>
                   </div>
                 ))
               )}
             </div>
 
+            {/* Quick Actions */}
             <div className="card">
-              <h2 className="section-title" style={{ marginBottom: 16 }}>Quick Actions</h2>
-              <button className="btn-primary" onClick={() => setActiveNav('tutors')} style={{ width: '100%', marginBottom: '10px' }}>
-                👨‍🏫 Review Pending Tutors
-              </button>
-              <button className="btn-primary" onClick={() => setActiveNav('subjects')} style={{ width: '100%', marginBottom: '10px', background: 'var(--purple)' }}>
-                📚 Manage Subjects
-              </button>
-              <button className="btn-primary" onClick={() => setActiveNav('logs')} style={{ width: '100%', background: 'var(--warning)' }}>
-                📋 View All Logs
-              </button>
+              <div className="card-header">
+                <h2 className="section-title">
+                  <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px' }}>⚡</div>
+                  Quick Actions
+                </h2>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <button className="btn-primary" onClick={() => setActiveNav('tutors')} style={{ width: '100%', justifyContent: 'center' }}>
+                  👨‍🏫 Review Pending Tutors
+                  {pendingTutors.length > 0 && <span style={{ background: 'rgba(255,255,255,.25)', borderRadius: '20px', padding: '1px 8px', fontSize: '12px', marginLeft: '4px' }}>{pendingTutors.length}</span>}
+                </button>
+                <button className="btn-primary" onClick={() => setActiveNav('subjects')} style={{ width: '100%', justifyContent: 'center', background: 'linear-gradient(135deg,#7C3AED,#5B21B6)', boxShadow: '0 4px 14px rgba(124,58,237,.28)' }}>
+                  📚 Manage Subjects
+                </button>
+                <button className="btn-primary" onClick={() => setActiveNav('logs')} style={{ width: '100%', justifyContent: 'center', background: 'linear-gradient(135deg,#D97706,#B45309)', boxShadow: '0 4px 14px rgba(217,119,6,.28)' }}>
+                  📋 View All Logs
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -321,66 +331,82 @@ function AdminDashboard() {
 
     if (activeNav === 'tutors') {
       return (
-        <div className="page-content">
+        <div className="page-content tt-a0">
           <div className="page-header">
-            <h1 className="page-title">Tutor Management</h1>
-            <p className="page-subtitle">Verify and manage tutors in the system.</p>
+            <div>
+              <h1 className="page-title">Tutor Management</h1>
+              <p className="page-subtitle">Verify and manage tutors in the system.</p>
+            </div>
           </div>
 
-          <div className="card">
-            <h2 className="section-title" style={{ marginBottom: 16 }}>
-              Pending Verifications ({pendingTutors.length})
-            </h2>
+          {/* Pending Verifications */}
+          <div className="card" style={{ marginBottom: '20px' }}>
+            <div className="card-header">
+              <h2 className="section-title">
+                <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'var(--warning-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px' }}>⏳</div>
+                Pending Verifications
+                {pendingTutors.length > 0 && (
+                  <span style={{ background: 'var(--warning-light)', color: 'var(--warning)', border: '1.5px solid #FDE68A', borderRadius: '20px', padding: '2px 10px', fontSize: '12px', fontWeight: 700 }}>
+                    {pendingTutors.length}
+                  </span>
+                )}
+              </h2>
+            </div>
 
             {tutorsError && (
-              <div style={{ marginBottom: '16px', padding: '12px 14px', borderRadius: '8px', background: 'rgba(244, 67, 54, 0.1)', color: 'var(--error)' }}>
-                {tutorsError}
+              <div style={{ marginBottom: '16px', padding: '11px 14px', borderRadius: '10px', background: 'var(--error-light)', color: 'var(--error)', fontSize: '13px', fontWeight: 600, border: '1.5px solid #FECACA' }}>
+                ⚠️ {tutorsError}
               </div>
             )}
 
             {tutorsLoading ? (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>Loading tutors...</div>
+              <div style={{ textAlign: 'center', padding: '28px', color: 'var(--text-light)', fontSize: '13px' }}>
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>⏳</div>Loading tutors...
+              </div>
             ) : pendingTutors.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>No pending verifications</div>
+              <div style={{ textAlign: 'center', padding: '28px', color: 'var(--text-light)', fontSize: '13px' }}>
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>✅</div>No pending verifications
+              </div>
             ) : (
-              <div style={{ display: 'grid', gap: '12px' }}>
+              <div style={{ display: 'grid', gap: '10px' }}>
                 {pendingTutors.map(tutor => (
                   <div key={getTutorId(tutor) || tutor.email} style={{
-                    padding: '16px',
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px',
+                    padding: '14px 16px',
+                    border: '1.5px solid var(--border)',
+                    borderRadius: '12px',
+                    borderLeft: '4px solid var(--warning)',
                     display: 'flex',
                     justifyContent: 'space-between',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    background: 'var(--bg)',
+                    gap: '12px',
                   }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, marginBottom: '4px' }}>👤 {tutor.name}</div>
-                      <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                        📧 {tutor.email}
-                      </div>
-                      <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                        Submitted: {tutor.createdAt ? new Date(tutor.createdAt).toLocaleDateString() : 'N/A'}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, marginBottom: '3px', color: 'var(--navy)', fontSize: '14px' }}>👤 {tutor.name}</div>
+                      <div style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>📧 {tutor.email}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '3px' }}>
+                        🗓️ Submitted: {tutor.createdAt ? new Date(tutor.createdAt).toLocaleDateString() : 'N/A'}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
                       <button
                         className="btn-primary"
                         onClick={() => handleViewTutorDetails(tutor)}
-                        style={{ background: 'var(--purple)', padding: '8px 16px', fontSize: '13px' }}
+                        style={{ background: 'linear-gradient(135deg,#7C3AED,#5B21B6)', boxShadow: '0 4px 12px rgba(124,58,237,.28)', padding: '8px 14px', fontSize: '12.5px' }}
                       >
                         👁 View Details
                       </button>
                       <button
                         className="btn-primary"
                         onClick={() => handleApproveTutor(getTutorId(tutor))}
-                        style={{ background: 'var(--success)', padding: '8px 16px', fontSize: '13px' }}
+                        style={{ background: 'linear-gradient(135deg,#059669,#047857)', boxShadow: '0 4px 12px rgba(5,150,105,.28)', padding: '8px 14px', fontSize: '12.5px' }}
                       >
                         ✓ Approve
                       </button>
                       <button
                         className="btn-primary"
                         onClick={() => handleRejectTutor(getTutorId(tutor))}
-                        style={{ background: 'var(--error)', padding: '8px 16px', fontSize: '13px' }}
+                        style={{ background: 'linear-gradient(135deg,#DC2626,#B91C1C)', boxShadow: '0 4px 12px rgba(220,38,38,.28)', padding: '8px 14px', fontSize: '12.5px' }}
                       >
                         ✕ Reject
                       </button>
@@ -391,40 +417,40 @@ function AdminDashboard() {
             )}
           </div>
 
-          <div className="card" style={{ marginTop: '20px' }}>
-            <h2 className="section-title" style={{ marginBottom: 16 }}>
-              Verified Tutors ({verifiedTutors.length})
-            </h2>
+          {/* Verified Tutors */}
+          <div className="card">
+            <div className="card-header">
+              <h2 className="section-title">
+                <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'var(--success-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px' }}>✓</div>
+                Verified Tutors
+                <span style={{ background: 'var(--success-light)', color: '#047857', border: '1.5px solid #A7F3D0', borderRadius: '20px', padding: '2px 10px', fontSize: '12px', fontWeight: 700 }}>
+                  {verifiedTutors.length}
+                </span>
+              </h2>
+            </div>
 
             {verifiedTutors.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>No verified tutors yet</div>
+              <div style={{ textAlign: 'center', padding: '28px', color: 'var(--text-light)', fontSize: '13px' }}>
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>👨‍🏫</div>No verified tutors yet
+              </div>
             ) : (
-              <div style={{ display: 'grid', gap: '12px' }}>
+              <div style={{ display: 'grid', gap: '10px' }}>
                 {verifiedTutors.map(tutor => (
                   <div key={tutor.id} style={{
-                    padding: '16px',
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px',
+                    padding: '14px 16px',
+                    border: '1.5px solid var(--border)',
+                    borderRadius: '12px',
+                    borderLeft: '4px solid var(--success)',
                     display: 'flex',
                     justifyContent: 'space-between',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    background: 'var(--bg)',
                   }}>
                     <div>
-                      <div style={{ fontWeight: 600, marginBottom: '4px' }}>{tutor.name}</div>
-                      <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                        📧 {tutor.email} • 📚 {tutor.subject}
-                      </div>
+                      <div style={{ fontWeight: 700, marginBottom: '3px', color: 'var(--navy)', fontSize: '14px' }}>{tutor.name}</div>
+                      <div style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>📧 {tutor.email} · 📚 {tutor.subject}</div>
                     </div>
-                    <span style={{
-                      background: 'var(--success-light)',
-                      color: 'var(--success)',
-                      padding: '6px 12px',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontWeight: 600
-                    }}>
-                      ✓ Verified
-                    </span>
+                    <span className="badge-verified">✓ Verified</span>
                   </div>
                 ))}
               </div>
@@ -436,35 +462,54 @@ function AdminDashboard() {
 
     if (activeNav === 'subjects') {
       return (
-        <div className="page-content">
+        <div className="page-content tt-a0">
           <div className="page-header">
-            <h1 className="page-title">Manage Subjects</h1>
-            <p className="page-subtitle">Add and manage academic subjects available for tutoring.</p>
+            <div>
+              <h1 className="page-title">Manage Subjects</h1>
+              <p className="page-subtitle">Add and manage academic subjects available for tutoring.</p>
+            </div>
           </div>
 
           <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h2 className="section-title">Academic Subjects ({subjects.length})</h2>
+            <div className="card-header">
+              <h2 className="section-title">
+                <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'var(--purple-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px' }}>📚</div>
+                Academic Subjects
+                <span style={{ background: 'var(--primary-light)', color: 'var(--primary)', border: '1.5px solid #C3D9F8', borderRadius: '20px', padding: '2px 10px', fontSize: '12px', fontWeight: 700 }}>
+                  {subjects.length}
+                </span>
+              </h2>
               <button className="btn-primary" onClick={() => setNewSubjectModal(true)}>
                 ➕ Add Subject
               </button>
             </div>
 
             {subjectsLoading ? (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>Loading subjects...</div>
+              <div style={{ textAlign: 'center', padding: '28px', color: 'var(--text-light)', fontSize: '13px' }}>
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>⏳</div>Loading subjects...
+              </div>
             ) : subjects.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>No subjects yet</div>
+              <div style={{ textAlign: 'center', padding: '28px', color: 'var(--text-light)', fontSize: '13px' }}>
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>📭</div>No subjects yet
+              </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '14px' }}>
                 {subjects.map(subject => (
                   <div key={subject.id} style={{
                     padding: '16px',
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px',
-                    background: 'var(--bg)'
-                  }}>
-                    <div style={{ fontWeight: 600, marginBottom: '8px' }}>📚 {subject.name}</div>
-                    <div style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                    border: '1.5px solid var(--border)',
+                    borderRadius: '12px',
+                    background: 'var(--bg)',
+                    transition: 'border-color .15s, box-shadow .15s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--primary-mid)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(8,33,62,.08)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px' }}>📚</div>
+                      <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--navy)' }}>{subject.name}</div>
+                    </div>
+                    <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', lineHeight: '1.55' }}>
                       {subject.description || 'No description'}
                     </div>
                   </div>
@@ -478,13 +523,13 @@ function AdminDashboard() {
             <div className="modal-overlay" onClick={() => setNewSubjectModal(false)}>
               <div className="modal-box" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
-                  <h2 className="modal-title">Add New Subject</h2>
+                  <h2 className="modal-title">📚 Add New Subject</h2>
                   <button className="modal-close" onClick={() => setNewSubjectModal(false)}>✕</button>
                 </div>
 
                 <div className="modal-body">
                   <div className="modal-field">
-                    <label className="modal-label">Subject Name</label>
+                    <label className="modal-label">Subject Name <span style={{ color: 'var(--error)' }}>*</span></label>
                     <input
                       className="modal-input"
                       value={newSubject.name}
@@ -494,9 +539,9 @@ function AdminDashboard() {
                   </div>
 
                   <div className="modal-field">
-                    <label className="modal-label">Description</label>
+                    <label className="modal-label">Description <span style={{ color: 'var(--text-light)', fontWeight: 500, fontSize: '11px', textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
                     <textarea
-                      className="modal-input"
+                      className="modal-input modal-textarea"
                       value={newSubject.description}
                       onChange={e => setNewSubject({ ...newSubject, description: e.target.value })}
                       placeholder="Brief description of the subject"
@@ -508,7 +553,7 @@ function AdminDashboard() {
 
                 <div className="modal-footer">
                   <button className="btn-ghost" onClick={() => setNewSubjectModal(false)}>Cancel</button>
-                  <button className="btn-primary" onClick={handleAddSubject}>Add Subject</button>
+                  <button className="btn-primary" onClick={handleAddSubject}>➕ Add Subject</button>
                 </div>
               </div>
             </div>
@@ -519,42 +564,59 @@ function AdminDashboard() {
 
     if (activeNav === 'logs') {
       return (
-        <div className="page-content">
+        <div className="page-content tt-a0">
           <div className="page-header">
-            <h1 className="page-title">System Logs</h1>
-            <p className="page-subtitle">View all system activity and audit logs.</p>
+            <div>
+              <h1 className="page-title">System Logs</h1>
+              <p className="page-subtitle">View all system activity and audit logs.</p>
+            </div>
           </div>
 
           <div className="card">
+            <div className="card-header">
+              <h2 className="section-title">
+                <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'var(--warning-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px' }}>📋</div>
+                Audit Log
+              </h2>
+            </div>
             {logsLoading ? (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>Loading logs...</div>
+              <div style={{ textAlign: 'center', padding: '28px', color: 'var(--text-light)', fontSize: '13px' }}>
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>⏳</div>Loading logs...
+              </div>
             ) : systemLogs.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>No system logs</div>
+              <div style={{ textAlign: 'center', padding: '36px', color: 'var(--text-light)', fontSize: '13px' }}>
+                <div style={{ fontSize: '32px', marginBottom: '10px' }}>📭</div>
+                <p style={{ fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px' }}>No system logs yet</p>
+                <p>System events will appear here once activity is recorded.</p>
+              </div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
-                    <tr style={{ borderBottom: '2px solid var(--border)' }}>
-                      <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, fontSize: '13px', color: 'var(--text-muted)' }}>Action</th>
-                      <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, fontSize: '13px', color: 'var(--text-muted)' }}>User</th>
-                      <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, fontSize: '13px', color: 'var(--text-muted)' }}>Timestamp</th>
-                      <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, fontSize: '13px', color: 'var(--text-muted)' }}>Status</th>
+                    <tr style={{ borderBottom: '1.5px solid var(--primary-light)' }}>
+                      {['Action', 'User', 'Timestamp', 'Status'].map(h => (
+                        <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 700, fontSize: '11.5px', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', background: 'var(--bg)' }}>{h}</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
                     {systemLogs.map((log, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
-                        <td style={{ padding: '12px', fontSize: '13px' }}>{log.action}</td>
-                        <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-muted)' }}>{log.user || 'System'}</td>
-                        <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-muted)' }}>{log.timestamp}</td>
-                        <td style={{ padding: '12px' }}>
+                      <tr key={idx} style={{ borderBottom: '1px solid var(--primary-light)', transition: 'background .12s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                      >
+                        <td style={{ padding: '12px 14px', fontSize: '13px', color: 'var(--navy)', fontWeight: 500 }}>{log.action}</td>
+                        <td style={{ padding: '12px 14px', fontSize: '13px', color: 'var(--text-muted)' }}>{log.user || 'System'}</td>
+                        <td style={{ padding: '12px 14px', fontSize: '12.5px', color: 'var(--text-muted)' }}>{log.timestamp}</td>
+                        <td style={{ padding: '12px 14px' }}>
                           <span style={{
                             background: log.status === 'SUCCESS' ? 'var(--success-light)' : 'var(--error-light)',
-                            color: log.status === 'SUCCESS' ? 'var(--success)' : 'var(--error)',
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            fontSize: '11px',
-                            fontWeight: 600
+                            color:      log.status === 'SUCCESS' ? '#047857'              : 'var(--error)',
+                            border:     `1.5px solid ${log.status === 'SUCCESS' ? '#A7F3D0' : '#FECACA'}`,
+                            padding: '3px 10px',
+                            borderRadius: '20px',
+                            fontSize: '11.5px',
+                            fontWeight: 700,
                           }}>
                             {log.status}
                           </span>
@@ -578,17 +640,17 @@ function AdminDashboard() {
         <div className="modal-overlay" onClick={() => setLogoutConfirmOpen(false)}>
           <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
             <div className="modal-header">
-              <h2 className="modal-title">Confirm Logout</h2>
+              <h2 className="modal-title">🚪 Confirm Logout</h2>
               <button className="modal-close" onClick={() => setLogoutConfirmOpen(false)}>✕</button>
             </div>
             <div className="modal-body">
-              <p style={{ margin: 0, color: 'var(--text)', lineHeight: '1.6' }}>
+              <p style={{ margin: 0, color: 'var(--text-muted)', lineHeight: '1.65', fontSize: '14px' }}>
                 Are you sure you want to logout? You'll need to login again to access your account.
               </p>
             </div>
             <div className="modal-footer">
               <button className="btn-ghost" onClick={() => setLogoutConfirmOpen(false)}>Cancel</button>
-              <button className="btn-primary" onClick={handleLogout} style={{ background: 'var(--error)' }}>Logout</button>
+              <button className="btn-primary" onClick={handleLogout} style={{ background: 'linear-gradient(135deg,#DC2626,#B91C1C)', boxShadow: '0 4px 14px rgba(220,38,38,.30)' }}>🚪 Logout</button>
             </div>
           </div>
         </div>
@@ -604,54 +666,54 @@ function AdminDashboard() {
             </div>
 
             <div className="modal-body" style={{ maxHeight: '500px', overflowY: 'auto' }}>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>NAME</label>
-                <div style={{ fontSize: '14px', fontWeight: 500, marginTop: '4px' }}>{selectedTutor.name}</div>
-              </div>
-
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>EMAIL</label>
-                <div style={{ fontSize: '14px', fontWeight: 500, marginTop: '4px' }}>{selectedTutor.email}</div>
-              </div>
+              {[
+                { label: 'NAME',  value: selectedTutor.name },
+                { label: 'EMAIL', value: selectedTutor.email },
+              ].map(row => (
+                <div key={row.label} style={{ background: 'var(--bg)', borderRadius: '10px', padding: '12px 14px', border: '1px solid var(--border)' }}>
+                  <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{row.label}</label>
+                  <div style={{ fontSize: '14px', fontWeight: 600, marginTop: '4px', color: 'var(--navy)' }}>{row.value}</div>
+                </div>
+              ))}
 
               {selectedTutor.bio && (
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>BIO</label>
-                  <div style={{ fontSize: '14px', marginTop: '4px', lineHeight: '1.5' }}>{selectedTutor.bio}</div>
+                <div style={{ background: 'var(--bg)', borderRadius: '10px', padding: '12px 14px', border: '1px solid var(--border)' }}>
+                  <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>BIO</label>
+                  <div style={{ fontSize: '13.5px', marginTop: '4px', lineHeight: '1.6', color: 'var(--text-muted)' }}>{selectedTutor.bio}</div>
                 </div>
               )}
 
               {selectedTutor.specialization && (
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>SPECIALIZATION</label>
-                  <div style={{ fontSize: '14px', fontWeight: 500, marginTop: '4px' }}>📚 {selectedTutor.specialization}</div>
+                <div style={{ background: 'var(--bg)', borderRadius: '10px', padding: '12px 14px', border: '1px solid var(--border)' }}>
+                  <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>SPECIALIZATION</label>
+                  <div style={{ fontSize: '14px', fontWeight: 600, marginTop: '4px', color: 'var(--primary)' }}>📚 {selectedTutor.specialization}</div>
                 </div>
               )}
 
               {selectedTutor.yearsOfExperience && (
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>YEARS OF EXPERIENCE</label>
-                  <div style={{ fontSize: '14px', fontWeight: 500, marginTop: '4px' }}>{selectedTutor.yearsOfExperience} years</div>
+                <div style={{ background: 'var(--bg)', borderRadius: '10px', padding: '12px 14px', border: '1px solid var(--border)' }}>
+                  <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>YEARS OF EXPERIENCE</label>
+                  <div style={{ fontSize: '14px', fontWeight: 600, marginTop: '4px', color: 'var(--navy)' }}>{selectedTutor.yearsOfExperience} years</div>
                 </div>
               )}
 
               {selectedTutor.hourlyRate && (
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>HOURLY RATE</label>
-                  <div style={{ fontSize: '14px', fontWeight: 500, marginTop: '4px', color: 'var(--success)' }}>${selectedTutor.hourlyRate}/hour</div>
+                <div style={{ background: 'var(--success-light)', borderRadius: '10px', padding: '12px 14px', border: '1.5px solid #A7F3D0' }}>
+                  <label style={{ fontSize: '11px', color: '#047857', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>HOURLY RATE</label>
+                  <div style={{ fontSize: '14px', fontWeight: 700, marginTop: '4px', color: '#047857' }}>₱{selectedTutor.hourlyRate}/hour</div>
                 </div>
               )}
 
               {selectedTutor.rating && (
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>CURRENT RATING</label>
-                  <div style={{ fontSize: '14px', fontWeight: 500, marginTop: '4px' }}>⭐ {selectedTutor.rating.toFixed(1)} / 5.0</div>
+                <div style={{ background: 'var(--warning-light)', borderRadius: '10px', padding: '12px 14px', border: '1.5px solid #FDE68A' }}>
+                  <label style={{ fontSize: '11px', color: 'var(--warning)', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>CURRENT RATING</label>
+                  <div style={{ fontSize: '14px', fontWeight: 700, marginTop: '4px', color: 'var(--warning)' }}>⭐ {selectedTutor.rating.toFixed(1)} / 5.0</div>
                 </div>
               )}
 
-              <div style={{ marginBottom: '16px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
-                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>APPLICATION DATE</label>
-                <div style={{ fontSize: '14px', fontWeight: 500, marginTop: '4px' }}>
+              <div style={{ background: 'var(--bg)', borderRadius: '10px', padding: '12px 14px', border: '1px solid var(--border)' }}>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>APPLICATION DATE</label>
+                <div style={{ fontSize: '14px', fontWeight: 600, marginTop: '4px', color: 'var(--navy)' }}>
                   {selectedTutor.createdAt ? new Date(selectedTutor.createdAt).toLocaleDateString() : 'N/A'}
                 </div>
               </div>
@@ -665,7 +727,7 @@ function AdminDashboard() {
                   setTutorDetailModalOpen(false);
                   handleApproveTutor(getTutorId(selectedTutor));
                 }}
-                style={{ background: 'var(--success)' }}
+                style={{ background: 'linear-gradient(135deg,#059669,#047857)', boxShadow: '0 4px 14px rgba(5,150,105,.30)' }}
               >
                 ✓ Approve Tutor
               </button>

@@ -123,15 +123,30 @@ public class AvailabilityService {
         UUID tutorUuid = parseUuid(tutorIdentifier, "tutorId");
 
         Optional<TutorProfile> tutorOpt = tutorProfileRepository.findById(tutorUuid);
-        if (tutorOpt.isEmpty()) {
-            tutorOpt = tutorProfileRepository.findByUserId(tutorUuid);
+        List<TutorProfile> approvedProfiles;
+        if (tutorOpt.isPresent()) {
+            TutorProfile profile = tutorOpt.get();
+            approvedProfiles = tutorProfileRepository.findAllByUserId(parseUuid(profile.getUserId(), "userId")).stream()
+                .filter(p -> "APPROVED".equals(p.getApprovalStatus()))
+                .collect(Collectors.toList());
+            if (approvedProfiles.isEmpty() && "APPROVED".equals(profile.getApprovalStatus())) {
+                approvedProfiles = List.of(profile);
+            }
+        } else {
+            approvedProfiles = tutorProfileRepository.findAllByUserId(tutorUuid).stream()
+                .filter(p -> "APPROVED".equals(p.getApprovalStatus()))
+                .collect(Collectors.toList());
         }
 
-        if (tutorOpt.isEmpty() || !"APPROVED".equals(tutorOpt.get().getApprovalStatus())) {
+        if (approvedProfiles.isEmpty()) {
             return List.of();
         }
 
-        return availabilityRepository.findByTutorId(parseUuid(tutorOpt.get().getId(), "tutorId")).stream()
+        List<Availability> allSlots = approvedProfiles.stream()
+            .flatMap(p -> availabilityRepository.findByTutorId(parseUuid(p.getId(), "tutorId")).stream())
+            .collect(Collectors.toList());
+
+        return allSlots.stream()
             .filter(slot -> !Boolean.TRUE.equals(slot.getIsBooked()))
             .collect(Collectors.toList());
     }

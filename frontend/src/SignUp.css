@@ -1,262 +1,351 @@
 /* ======================
    SignUp.css — TutorTime
+   No-scroll, one-screen
    ====================== */
 
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@700;800&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+
+/* ── ROOT — fixed full screen, NO scroll ── */
 .signup-container {
-  background-color: #ffffff;
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  display: flex;
+  overflow: hidden;
+  background: #F5F8FF;
+}
+
+/* ─────────────────────────────
+   LEFT PANEL
+───────────────────────────── */
+.signup-left {
+  width: 300px;
+  flex-shrink: 0;
+  background: linear-gradient(160deg, #2E71F0 0%, #1045B8 55%, #0A2F8A 100%);
   display: flex;
   flex-direction: column;
-}
-
-.top-bar {
-  height: 56px;
-  display: flex;
-  align-items: center;
-  padding: 0 16px;
-  border-bottom: 1px solid #f0f2f5;
-}
-
-.back-arrow {
-  width: 40px;
-  height: 40px;
-  display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 22px;
-  color: #111111;
-  cursor: pointer;
-  border-radius: 8px;
-  transition: background 0.15s;
+  padding: 32px 28px;
+  position: relative;
+  overflow: hidden;
 }
 
-.back-arrow:hover {
-  background: #f5f7fa;
+.signup-blob {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.signup-blob-1 { width: 220px; height: 220px; top: -70px; left: -70px; background: rgba(255,255,255,.08); }
+.signup-blob-2 { width: 160px; height: 160px; bottom: -50px; right: -40px; background: rgba(255,255,255,.07); }
+.signup-blob-3 { width: 90px;  height: 90px;  top: 38%; left: 12%; background: rgba(255,255,255,.10); }
+.signup-blob-4 { width: 52px;  height: 52px;  top: 62%; right: 14%; background: rgba(255,255,255,.14); }
+.signup-blob-5 { width: 34px;  height: 34px;  bottom: 24%; left: 40%; background: rgba(255,255,255,.18); }
+
+.signup-left-logo {
+  width: 56px; height: 56px;
+  background: rgba(255,255,255,.18);
+  border: 2px solid rgba(255,255,255,.38);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 12px; z-index: 1;
+}
+.signup-left-logo-letter {
+  font-family: 'Sora', sans-serif;
+  font-size: 22px; font-weight: 800; color: #fff; line-height: 1;
 }
 
-.signup-content {
+.signup-left-brand {
+  font-family: 'Sora', sans-serif;
+  font-size: 17px; font-weight: 800; color: #fff;
+  letter-spacing: -0.02em; margin-bottom: 28px; z-index: 1;
+}
+
+.signup-left-title {
+  font-family: 'Sora', sans-serif;
+  font-size: 20px; font-weight: 800; color: #fff;
+  text-align: center; line-height: 1.25;
+  letter-spacing: -0.02em; margin-bottom: 10px; z-index: 1;
+}
+
+.signup-left-sub {
+  font-size: 12.5px; color: rgba(255,255,255,.70);
+  text-align: center; line-height: 1.55; z-index: 1; max-width: 200px;
+}
+
+.signup-left-dots {
+  display: flex; gap: 7px; margin-top: 32px; z-index: 1;
+}
+.signup-left-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: rgba(255,255,255,.30);
+}
+.signup-left-dot.active {
+  width: 22px; border-radius: 4px; background: #fff;
+}
+
+/* ─────────────────────────────
+   RIGHT PANEL — no overflow
+───────────────────────────── */
+.signup-right {
   flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 24px 32px 48px;
-  overflow-y: auto;
+  background: #fff;
+  overflow: hidden;
+  height: 100vh;
 }
 
-/* Logo */
-.logo {
-  width: 70px;
-  height: 70px;
-  background-color: #0047ab;
-  border-radius: 50%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 12px;
-  box-shadow: 0 4px 16px rgba(0, 71, 171, 0.3);
-}
-
-.logo-text {
-  font-size: 32px;
-  font-weight: 800;
-  color: #ffffff;
-  font-family: 'DM Sans', 'Segoe UI', sans-serif;
-}
-
-/* Headings */
-.app-name {
-  font-size: 20px;
-  font-weight: 800;
-  color: #0047ab;
-  margin: 0 0 8px;
-  font-family: 'DM Sans', 'Segoe UI', sans-serif;
-  letter-spacing: -0.02em;
-}
-
-.create-account {
-  font-size: 22px;
-  font-weight: 800;
-  color: #111111;
-  margin: 0 0 4px;
-  font-family: 'DM Sans', 'Segoe UI', sans-serif;
-  letter-spacing: -0.02em;
-}
-
-.subtitle {
-  font-size: 13px;
-  color: #888888;
-  margin: 0 0 24px;
-  text-align: center;
-  line-height: 1.5;
-}
-
-/* Error */
-.error-message {
-  font-size: 13px;
-  color: #dc2626;
-  background-color: #fef2f2;
-  padding: 10px 14px;
-  border-radius: 8px;
-  margin-bottom: 16px;
-  border-left: 4px solid #dc2626;
-  width: 100%;
-  max-width: 400px;
-  box-sizing: border-box;
-  text-align: left;
-}
-
-/* Input Fields */
-.input-field {
-  display: flex;
-  align-items: center;
-  background-color: #f5f7fa;
-  height: 52px;
-  padding: 0 14px;
-  margin-bottom: 14px;
-  border-radius: 10px;
-  border: 1.5px solid #e5e8ef;
-  width: 100%;
-  max-width: 400px;
-  box-sizing: border-box;
-  transition: border-color 0.2s;
-}
-
-.input-field:focus-within {
-  border-color: #0047ab;
-  background-color: #eef3ff;
-}
-
-.input-icon {
-  font-size: 16px;
-  margin-right: 10px;
+/* top bar */
+.top-bar {
+  height: 50px;
+  min-height: 50px;
+  display: flex; align-items: center;
+  padding: 0 32px;
+  border-bottom: 1.5px solid #EBF1FD;
   flex-shrink: 0;
 }
 
-.input-field input {
+.back-arrow {
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; color: #374151; cursor: pointer;
+  border-radius: 8px; border: 1.5px solid #D5E3F7; background: #F5F8FF;
+  transition: border-color 0.15s, color 0.15s;
+}
+.back-arrow:hover { border-color: #2E71F0; color: #1558D6; }
+
+/* scrollable body */
+.signup-content {
   flex: 1;
-  border: none;
-  background: none;
-  font-size: 14px;
-  color: #222222;
-  outline: none;
-  font-family: 'DM Sans', 'Segoe UI', sans-serif;
-}
-
-.input-field input::placeholder {
-  color: #aaaaaa;
-}
-
-.input-field input:disabled {
-  color: #cccccc;
-}
-
-/* Role Section */
-.role-section {
-  width: 100%;
-  max-width: 400px;
-  margin-top: 8px;
-  margin-bottom: 24px;
-}
-
-.role-label {
-  display: block;
-  font-size: 14px;
-  font-weight: 700;
-  color: #333333;
-  margin-bottom: 12px;
-  font-family: 'DM Sans', 'Segoe UI', sans-serif;
-}
-
-.role-cards {
+  padding: 22px 44px 20px;
   display: flex;
-  width: 100%;
+  flex-direction: column;
+  overflow: hidden;   /* clamp — no scroll */
+  animation: slideInRight 0.28s ease both;
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(14px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* heading */
+.signup-heading { margin-bottom: 16px; text-align: center; }
+
+.create-account {
+  font-family: 'Sora', sans-serif;
+  font-size: 20px; font-weight: 800; color: #08213E;
+  letter-spacing: -0.03em; margin-bottom: 3px;
+}
+
+.subtitle {
+  font-size: 12.5px; color: #6B7280; line-height: 1.4; font-weight: 400;
+}
+
+/* section label */
+.form-section-label {
+  font-size: 9.5px; font-weight: 700; color: #9CA3AF;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  margin-bottom: 7px; margin-top: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+.form-section-label::after {
+  content: ''; flex: 1; height: 1px; background: #EBF1FD;
+}
+
+/* two-col grid */
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
 
-.role-card {
-  flex: 1;
-  height: 90px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  background-color: #f5f7fa;
-  border-radius: 10px;
-  border: 1.5px solid #e5e8ef;
-  cursor: pointer;
-  transition: all 0.15s;
+/* group */
+.form-group {
+  display: flex; flex-direction: column;
+  gap: 0; margin-bottom: 8px;
 }
+.form-group:last-child { margin-bottom: 0; }
 
-.role-card:hover {
-  border-color: #0047ab;
-}
-
-.role-card.selected {
-  background-color: #0047ab;
-  border-color: #0047ab;
-  box-shadow: 0 4px 12px rgba(0, 71, 171, 0.25);
-}
-
-.role-card.selected .role-text {
-  color: #ffffff;
-}
-
-.role-icon {
-  font-size: 26px;
-  margin-bottom: 6px;
-}
-
-.role-text {
-  font-size: 14px;
-  font-weight: 700;
-  color: #0047ab;
-  font-family: 'DM Sans', 'Segoe UI', sans-serif;
-}
-
-/* Sign Up Button */
-.sign-up-btn {
+/* input */
+.input-field {
+  display: flex; align-items: center;
+  background: #F5F8FF; height: 40px; padding: 0 12px;
+  border-radius: 10px; border: 1.5px solid #D5E3F7;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
   width: 100%;
-  max-width: 400px;
-  height: 52px;
-  background-color: #0047ab;
-  color: #ffffff;
-  font-size: 16px;
-  font-weight: 700;
+}
+.input-field:focus-within {
+  border-color: #2E71F0; background: #fff;
+  box-shadow: 0 0 0 3px rgba(46,113,240,.10);
+}
+
+.input-icon {
+  font-size: 13px; margin-right: 8px; flex-shrink: 0; opacity: 0.45;
+}
+
+.input-field input,
+.input-field select {
+  flex: 1; border: none; background: none;
+  font-size: 13px; color: #08213E; outline: none;
+  font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 400;
+}
+.input-field input::placeholder { color: #B0BAC9; font-size: 13px; }
+.input-field input:disabled     { color: #CBD5E1; }
+.input-field select { cursor: pointer; appearance: none; font-size: 13px; }
+
+.academic-field {
+  position: relative;
+  overflow: visible;
+}
+
+.academic-trigger {
+  width: 100%;
+  height: 100%;
   border: none;
-  border-radius: 10px;
-  margin-bottom: 20px;
+  background: transparent;
+  color: #08213E;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   cursor: pointer;
-  font-family: 'DM Sans', 'Segoe UI', sans-serif;
-  transition: background-color 0.2s, transform 0.1s;
-  letter-spacing: 0.01em;
 }
 
-.sign-up-btn:hover:not(:disabled) {
-  background-color: #003080;
-  transform: translateY(-1px);
-}
-
-.sign-up-btn:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.sign-up-btn:disabled {
-  background-color: #b0bfdb;
+.academic-trigger:disabled {
+  color: #CBD5E1;
   cursor: not-allowed;
 }
 
-/* Login Link */
-.login-link {
-  font-size: 14px;
-  color: #555555;
+.academic-caret {
+  color: #64748B;
+  font-size: 12px;
+  line-height: 1;
+  margin-left: 10px;
 }
 
-.login-link span {
-  color: #0047ab;
-  font-weight: 700;
+.academic-trigger.open .academic-caret {
+  transform: rotate(180deg);
+}
+
+.academic-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  max-height: 180px;
+  overflow-y: auto;
+  background: #FFFFFF;
+  border: 1.5px solid #C7D8F3;
+  border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(8, 33, 62, 0.16);
+}
+
+.academic-option {
+  width: 100%;
+  border: none;
+  background: #FFFFFF;
+  color: #08213E;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  padding: 9px 12px;
   cursor: pointer;
 }
 
-.login-link span:hover {
-  text-decoration: underline;
+.academic-option:hover {
+  background: #EEF4FF;
+}
+
+.academic-option.selected {
+  background: #DCE9FF;
+  color: #0F4CC8;
+  font-weight: 700;
+}
+
+/* error */
+.error-message {
+  font-size: 12.5px; font-weight: 600; color: #DC2626;
+  background: #FEF2F2; padding: 8px 12px; border-radius: 8px;
+  margin-bottom: 10px; border: 1.5px solid #FECACA;
+  display: flex; align-items: center; gap: 7px;
+}
+.error-message::before { content: '⚠️'; flex-shrink: 0; font-size: 12px; }
+
+/* role cards */
+.role-section { margin-bottom: 12px; }
+
+.role-label {
+  display: block; font-size: 9.5px; font-weight: 700; color: #9CA3AF;
+  letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px;
+}
+
+.role-cards { display: flex; gap: 10px; }
+
+.role-card {
+  flex: 1; height: 72px;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 5px;
+  background: #F5F8FF; border-radius: 12px;
+  border: 1.5px solid #D5E3F7; cursor: pointer;
+  transition: all 0.15s ease;
+}
+.role-card:hover {
+  border-color: #2E71F0; background: #EBF1FD;
+  transform: translateY(-1px); box-shadow: 0 3px 10px rgba(21,88,214,.10);
+}
+.role-card.selected {
+  background: linear-gradient(135deg,#2E71F0 0%,#1045B8 100%);
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(21,88,214,.28);
+  transform: translateY(-1px);
+}
+.role-card.selected .role-text { color: #fff; }
+
+.role-icon  { font-size: 18px; line-height: 1; }
+.role-text  { font-size: 12.5px; font-weight: 700; color: #1558D6; font-family: 'Plus Jakarta Sans', sans-serif; }
+
+/* submit button */
+.sign-up-btn {
+  width: 100%; height: 44px;
+  background: linear-gradient(135deg,#2E71F0 0%,#1045B8 100%);
+  color: #fff; font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 14px; font-weight: 700; border: none;
+  border-radius: 10px; margin-top: 6px; margin-bottom: 12px;
+  cursor: pointer; letter-spacing: 0.02em;
+  box-shadow: 0 4px 14px rgba(21,88,214,.28);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.sign-up-btn:hover:not(:disabled) {
+  transform: translateY(-2px); box-shadow: 0 7px 20px rgba(21,88,214,.36);
+}
+.sign-up-btn:active:not(:disabled) { transform: translateY(0); }
+.sign-up-btn:disabled {
+  background: #CBD5E1; box-shadow: none; cursor: not-allowed; transform: none;
+}
+
+/* login link */
+.login-link { font-size: 12.5px; color: #6B7280; text-align: center; }
+.login-link span { color: #1558D6; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
+.login-link span:hover { opacity: 0.75; text-decoration: underline; }
+
+/* ─────────────────────────────
+   RESPONSIVE
+───────────────────────────── */
+@media (max-width: 860px) {
+  .signup-left { width: 260px; }
+  .signup-content { padding: 18px 28px 16px; }
+}
+@media (max-width: 640px) {
+  .signup-left    { display: none; }
+  .signup-content { padding: 18px 20px 16px; }
+  .form-row       { grid-template-columns: 1fr; }
 }

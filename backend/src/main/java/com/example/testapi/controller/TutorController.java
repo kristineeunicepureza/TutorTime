@@ -1,6 +1,7 @@
 package com.example.testapi.controller;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,15 +87,21 @@ public class TutorController {
         String token = authService.extractToken(authorization);
         String uid = authService.verifyTokenAndGetUid(token);
 
-        Optional<TutorProfile> tutorOpt = tutorProfileRepository.findByUserId(UUID.fromString(uid));
-        if (tutorOpt.isEmpty()) {
+        List<TutorProfile> tutorProfiles = tutorProfileRepository.findAllByUserId(UUID.fromString(uid));
+        if (tutorProfiles.isEmpty()) {
             return Map.of(
                 "success", false,
                 "message", "No tutor profile found for this user"
             );
         }
 
-        TutorProfile tutor = tutorOpt.get();
+        TutorProfile tutor = tutorProfiles.stream()
+            .sorted(Comparator
+                .comparing(TutorProfile::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(TutorProfile::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+            .findFirst()
+            .orElse(tutorProfiles.get(0));
+
         Map<String, Object> profileMap = new HashMap<>();
         profileMap.put("id", tutor.getId());
         profileMap.put("userId", tutor.getUserId());

@@ -1,0 +1,16 @@
+{
+  "folders": [
+    {
+      "path": "backend"
+    },
+    {
+      "path": "frontend"
+    },
+    {
+      "path": "mobile"
+    }
+  ],
+  "settings": {
+    "java.import.maven.enabled": true
+  }
+}

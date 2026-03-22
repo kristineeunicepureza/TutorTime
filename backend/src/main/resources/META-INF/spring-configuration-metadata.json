@@ -22,8 +22,14 @@
     {
       "name": "supabase.api.key",
       "type": "java.lang.String",
-      "description": "Supabase API key",
+      "description": "Supabase anon/public API key — used for Auth endpoints",
       "sourceType": "com.example.testapi.config.SupabaseProperties$ApiKey"
+    },
+    {
+      "name": "supabase.service.key",
+      "type": "java.lang.String",
+      "description": "Supabase service_role secret key — used for Storage uploads and admin operations",
+      "sourceType": "com.example.testapi.config.SupabaseProperties"
     }
   ]
 }

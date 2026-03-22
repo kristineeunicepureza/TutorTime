@@ -1,35 +1,23 @@
 import { useState, useRef, useEffect } from 'react';
 import './TutorTimeDashboard.css';
 
-// Import utility functions
-import {
-  getFirstName,
-  getInitials,
-} from './utils/helpers';
-
-// Import UI Components
+import { getFirstName, getInitials } from './utils/helpers';
 import { Avatar } from './components/Avatar';
+import { ChangePasswordModal } from './components/ChangePasswordModal';
 
-// ════════════════════════════════════════════════════════════════════
-// TUTOR DASHBOARD
-// ════════════════════════════════════════════════════════════════════
 function TutorDashboard() {
   const [activeNav, setActiveNav] = useState('dashboard');
   const [notifOpen, setNotifOpen] = useState(false);
   const [bookingTab, setBookingTab] = useState('upcoming');
   const [notifications, setNotifications] = useState([]);
 
-  // Logout confirmation
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [pwModalOpen, setPwModalOpen] = useState(false);
 
-  // Availability Management
+  // Availability
   const [availabilityModalOpen, setAvailabilityModalOpen] = useState(false);
   const [availabilityForm, setAvailabilityForm] = useState({
-    dayOfWeek: 'MONDAY',
-    startTime: '09:00',
-    endTime: '17:00',
-    subject: '',
-    isRecurring: true,
+    dayOfWeek: 'MONDAY', startTime: '09:00', endTime: '17:00', subject: '', isRecurring: true,
   });
   const [availableSlots, setAvailableSlots] = useState([]);
   const [slotsLoading, setSlotsLoading] = useState(true);
@@ -37,24 +25,25 @@ function TutorDashboard() {
   // Profile
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [profilePhoto, setProfilePhoto] = useState(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
   const photoInputRef = useRef(null);
   const editPhotoRef = useRef(null);
   const [editPhoto, setEditPhoto] = useState(null);
   const [approvalStatus, setApprovalStatus] = useState('PENDING');
   const [approvalStatusLoading, setApprovalStatusLoading] = useState(true);
   const prevApprovalStatusRef = useRef(null);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSaveError, setProfileSaveError] = useState('');
 
   const [editForm, setEditForm] = useState({
     name: localStorage.getItem('userName') || '',
     subject: 'Mathematics',
-    bio: 'Experienced tutor in Mathematics and Data Structures',
-    hourlyRate: '25',
+    hourlyRate: '250',
   });
   const [savedProfile, setSavedProfile] = useState({
     name: localStorage.getItem('userName') || '',
     subject: 'Mathematics',
-    bio: 'Experienced tutor in Mathematics and Data Structures',
-    hourlyRate: '25',
+    hourlyRate: '250',
   });
 
   // Bookings
@@ -62,7 +51,7 @@ function TutorDashboard() {
   const [pastBookings, setPastBookings] = useState([]);
   const [bookingsLoading, setBookingsLoading] = useState(true);
 
-  // Subjects (from admin)
+  // Subjects
   const [subjects, setSubjects] = useState([]);
   const [subjectsLoading, setSubjectsLoading] = useState(true);
 
@@ -95,269 +84,183 @@ function TutorDashboard() {
     };
   };
 
-  // ── Fetch availability slots on mount ──────────────────────────────
+  // Load profile photo from backend on mount
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+    fetch('/api/profile', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (data.photoUrl && data.photoUrl.startsWith('http')) {
+          setProfilePhoto(data.photoUrl);
+        }
+        if (data.displayName) {
+          setSavedProfile(prev => ({ ...prev, name: data.displayName }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Availability slots
   useEffect(() => {
     const token = localStorage.getItem('authToken');
     if (!token) { setSlotsLoading(false); return; }
-    
     const fetchSlots = () => {
-      fetch('/api/availability', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      fetch('/api/availability', { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.json())
         .then(data => {
-          const rawSlots = Array.isArray(data?.data)
-            ? data.data
-            : Array.isArray(data)
-            ? data
-            : [];
+          const rawSlots = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
           setAvailableSlots(rawSlots.map(normalizeAvailabilitySlot).filter(Boolean));
           setSlotsLoading(false);
         })
         .catch(() => setSlotsLoading(false));
     };
-    
     fetchSlots();
-    // Auto-refresh availability slots every 5 seconds to ensure students see new slots immediately
     const interval = setInterval(fetchSlots, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // ── Fetch bookings on mount ───────────────────────────────────────
+  // Bookings
   useEffect(() => {
     const token = localStorage.getItem('authToken');
     if (!token) { setBookingsLoading(false); return; }
-    
     const fetchBookings = () => {
-      fetch('/api/bookings/tutor', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      fetch('/api/bookings/tutor', { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.json())
         .then(data => {
-          const bookings = Array.isArray(data?.data)
-            ? data.data
-            : Array.isArray(data)
-            ? data
-            : [];
-
-          // Normalize tutor bookings defensively because status/name formats can vary across API revisions.
+          const bookings = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
           const normalizedBookings = bookings.map(b => {
             const rawStatus = (b.status || b.bookingStatus || '').toString().trim().toUpperCase();
             const parsedSlotStart = b.slotStart ? new Date(b.slotStart) : null;
+            const parsedSlotEnd = b.slotEnd ? new Date(b.slotEnd) : null;
             const hasValidSlotStart = parsedSlotStart && !Number.isNaN(parsedSlotStart.getTime());
+            const hasValidSlotEnd = parsedSlotEnd && !Number.isNaN(parsedSlotEnd.getTime());
             const displayStatus = rawStatus || (hasValidSlotStart && parsedSlotStart < new Date() ? 'COMPLETED' : 'CONFIRMED');
-
-            const studentName =
-              b.studentName ||
-              b.student?.name ||
-              b.student?.fullName ||
-              b.tutorName ||
-              (typeof b.tutor === 'string' ? b.tutor : null) ||
-              (b.studentId ? `Student ${String(b.studentId).slice(0, 8)}` : 'Unknown Student');
-
+            const studentName = b.studentName || b.tutorName || `Student ${String(b.studentId || '').slice(0, 8)}` || 'Unknown';
+            const dayLabel = hasValidSlotStart
+              ? parsedSlotStart.toLocaleDateString('en-US', { weekday: 'long' })
+              : (b.dayOfWeek || '');
+            const timeRange = hasValidSlotStart
+              ? `${parsedSlotStart.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - ${
+                  hasValidSlotEnd
+                    ? parsedSlotEnd.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                    : new Date(parsedSlotStart.getTime() + (30 * 60 * 1000)).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                }`
+              : (b.time || '');
             return {
-              ...b,
-              id: b.id,
-              status: displayStatus,
-              tutor: studentName,
+              ...b, status: displayStatus, tutor: studentName,
               date: b.date || (hasValidSlotStart ? parsedSlotStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''),
               time: b.time || (hasValidSlotStart ? parsedSlotStart.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : ''),
+              timeRange,
+              dayLabel,
               subject: b.subject || 'General Tutoring',
               location: b.locationName || b.location || 'Online',
-              durationMinutes: b.durationMinutes,
-              price: b.price,
               slotStartDate: hasValidSlotStart ? parsedSlotStart : null,
             };
           });
-
           const now = new Date();
-          const isPastBooking = (booking) => {
-            if (booking.status === 'COMPLETED' || booking.status === 'CANCELLED') return true;
-            if (booking.slotStartDate) return booking.slotStartDate < now;
-            return false;
-          };
-
-          setUpcomingBookings(normalizedBookings.filter(b => !isPastBooking(b)) || []);
-          setPastBookings(normalizedBookings.filter(isPastBooking) || []);
+          const isPast = (b) => b.status === 'COMPLETED' || b.status === 'CANCELLED' || (b.slotStartDate && b.slotStartDate < now);
+          setUpcomingBookings(normalizedBookings.filter(b => !isPast(b)));
+          setPastBookings(normalizedBookings.filter(isPast));
           setBookingsLoading(false);
         })
         .catch(() => setBookingsLoading(false));
     };
-    
     fetchBookings();
-    // Auto-refresh bookings every 5 seconds to catch new bookings immediately
     const interval = setInterval(fetchBookings, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // ── Fetch tutor notifications from backend ─────────────────────────
+  // Notifications
   useEffect(() => {
     const token = localStorage.getItem('authToken');
     if (!token) return;
-
     const fetchNotifications = () => {
-      fetch('/api/notifications', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      fetch('/api/notifications', { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.json())
         .then(data => {
-          const rows = Array.isArray(data?.data)
-            ? data.data
-            : Array.isArray(data)
-            ? data
-            : [];
+          const rows = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
           setNotifications(rows.map(normalizeNotification).filter(Boolean));
         })
         .catch(() => {});
     };
-
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // ── Fetch subjects from public endpoint on mount ──────────────────────────────
+  // Subjects
   useEffect(() => {
     const token = localStorage.getItem('authToken');
     if (!token) { setSubjectsLoading(false); return; }
-
     const fetchSubjects = () => {
-      fetch('/api/subjects', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      fetch('/api/subjects', { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.json())
         .then(data => {
-          const subjectList = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+          const subjectList = Array.isArray(data?.data) ? data.data : [];
           setSubjects(subjectList);
-          
-          // Set default subject to first available subject
-          if (subjectList.length > 0) {
-            setAvailabilityForm(prev => ({
-              ...prev,
-              subject: subjectList[0].name || ''
-            }));
+          if (subjectList.length > 0 && !availabilityForm.subject) {
+            setAvailabilityForm(prev => ({ ...prev, subject: subjectList[0].name || '' }));
           }
-          
           setSubjectsLoading(false);
         })
-        .catch((error) => {
-          console.error('Failed to fetch subjects:', error);
-          setSubjectsLoading(false);
-        });
+        .catch(() => setSubjectsLoading(false));
     };
-
     fetchSubjects();
     const interval = setInterval(fetchSubjects, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // ── Fetch approval status on mount ─────────────────────────────────
-
+  // Approval status
   useEffect(() => {
     const token = localStorage.getItem('authToken');
     if (!token) { setApprovalStatusLoading(false); return; }
 
-    const createTutorProfile = async () => {
-      const profilePayload = {
-        name: displayName,
-        subject: savedProfile.subject,
-        specialization: savedProfile.subject,
-        bio: savedProfile.bio,
-        hourlyRate: Number(savedProfile.hourlyRate) || 25,
-        approvalStatus: 'PENDING',
-      };
-
-      // Try both common create endpoints because backend variants differ.
-      const createEndpoints = [
-        '/api/tutors/profile',
-        '/api/tutors/profile/create',
-      ];
-
-      for (const endpoint of createEndpoints) {
-        try {
-          const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(profilePayload),
-          });
-
-          if (response.ok) {
-            return true;
-          }
-
-          const errData = await response.json().catch(() => ({}));
-          const errText = `${errData?.message || ''} ${errData?.error || ''}`.toLowerCase();
-          if (errText.includes('already exists')) {
-            return true;
-          }
-        } catch {
-          // Try next endpoint variant.
-        }
-      }
-
-      return false;
-    };
-
     const fetchApprovalStatus = async () => {
-      const profileRes = await fetch('/api/tutors/profile/my-profile', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (profileRes.ok) {
-        const data = await profileRes.json();
-        if (data.success && data.data) {
-          if (data.data.approvalStatus) {
+      try {
+        const profileRes = await fetch('/api/tutors/profile/my-profile', { headers: { Authorization: `Bearer ${token}` } });
+        if (profileRes.ok) {
+          const data = await profileRes.json();
+          if (data.success && data.data) {
             const newStatus = data.data.approvalStatus;
-            if (prevApprovalStatusRef.current !== null && prevApprovalStatusRef.current !== newStatus) {
-              const msg = newStatus === 'APPROVED'
-                ? 'Your tutor account has been approved. You can now start accepting students.'
-                : newStatus === 'REJECTED'
-                ? 'Your tutor application has been rejected. Please contact support for more information.'
-                : null;
-              if (msg) {
-                const notif = { id: Date.now(), text: msg, time: new Date().toLocaleTimeString(), read: false };
-                setNotifications(prev => [notif, ...prev]);
+            if (newStatus) {
+              if (prevApprovalStatusRef.current !== null && prevApprovalStatusRef.current !== newStatus) {
+                const msg = newStatus === 'APPROVED'
+                  ? 'Your tutor account has been approved! You can now accept bookings.'
+                  : newStatus === 'REJECTED'
+                  ? 'Your tutor application has been rejected. Contact support.'
+                  : null;
+                if (msg) setNotifications(prev => [{ id: Date.now(), text: msg, time: new Date().toLocaleTimeString(), read: false }, ...prev]);
               }
+              prevApprovalStatusRef.current = newStatus;
+              setApprovalStatus(newStatus);
             }
-            prevApprovalStatusRef.current = newStatus;
-            setApprovalStatus(newStatus);
+            // Load profile data from tutor profile
+            setSavedProfile(prev => ({
+              ...prev,
+              subject: data.data.specialization || data.data.subject || prev.subject,
+              hourlyRate: (data.data.hourlyRate ?? prev.hourlyRate).toString(),
+            }));
           }
-
-          setSavedProfile(prev => ({
-            ...prev,
-            name: data.data.name || prev.name,
-            subject: data.data.specialization || data.data.subject || prev.subject,
-            bio: data.data.bio || prev.bio,
-            hourlyRate: (data.data.hourlyRate ?? prev.hourlyRate).toString(),
-          }));
+        } else {
+          // Try to create profile
+          await fetch('/api/tutors/profile/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ bio: '', specialization: '', hourlyRate: 0, yearsOfExperience: 0 }),
+          });
         }
+      } catch (err) {
+        console.error('Failed to fetch approval status:', err);
+      } finally {
         setApprovalStatusLoading(false);
-        return;
       }
-
-      const errData = await profileRes.json().catch(() => ({}));
-      const errText = `${errData?.message || ''} ${errData?.error || ''}`.toLowerCase();
-      const missingProfile = profileRes.status === 404 || errText.includes('tutor profile not found');
-
-      if (missingProfile) {
-        const created = await createTutorProfile();
-        if (created) {
-          setApprovalStatus('PENDING');
-        }
-      }
-
-      setApprovalStatusLoading(false);
     };
 
     fetchApprovalStatus();
-
-    // Refresh approval status every 5 seconds
     const interval = setInterval(fetchApprovalStatus, 5000);
     return () => clearInterval(interval);
-  }, [displayName, savedProfile.bio, savedProfile.hourlyRate, savedProfile.subject]);
+  }, []);
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '⊞' },
@@ -366,123 +269,145 @@ function TutorDashboard() {
     { id: 'profile', label: 'Profile', icon: '👤' },
   ];
 
-  const handleNavClick = (id) => {
-    setActiveNav(id);
-    setNotifOpen(false);
-  };
-
+  const handleNavClick = (id) => { setActiveNav(id); setNotifOpen(false); };
   const handleLogout = () => {
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('userName');
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('userEmail');
+    localStorage.removeItem('authToken'); localStorage.removeItem('userName');
+    localStorage.removeItem('userRole'); localStorage.removeItem('userEmail');
     window.location.href = '/';
   };
 
-  const handleLogoutClick = () => {
-    setLogoutConfirmOpen(true);
-  };
-
-  const handleAddAvailability = async () => {
-    if (!availabilityForm.startTime || !availabilityForm.endTime) {
-      alert('Please fill in all fields');
-      return;
-    }
-    const token = localStorage.getItem('authToken');
-    try {
-      const availabilityPayload = {
-        ...availabilityForm,
-        recurringWeekly: availabilityForm.isRecurring,
-      };
-
-      const res = await fetch('/api/availability', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(availabilityPayload),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData?.message || errData?.error || 'Failed to add availability');
-      }
-
-      const createdResponse = await res.json();
-      const createdSlot = normalizeAvailabilitySlot(createdResponse?.data || createdResponse);
-      if (createdSlot) {
-        setAvailableSlots(prev => [createdSlot, ...prev]);
-      }
-      setAvailabilityModalOpen(false);
-      setAvailabilityForm({
-        dayOfWeek: 'MONDAY',
-        startTime: '09:00',
-        endTime: '17:00',
-        subject: 'Mathematics',
-        isRecurring: true,
-      });
-      alert('Availability added successfully!');
-    } catch (error) {
-      alert(error.message || 'Failed to add availability. Please try again.');
-    }
-  };
-
-  const handlePhotoUpload = (e) => {
+  // Photo upload with Supabase sync
+  const handlePhotoUploadWithSync = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    if (!file.type.startsWith('image/')) { alert('Please select an image file.'); return; }
+    if (file.size > 5 * 1024 * 1024) { alert('Image must be under 5MB.'); return; }
+
+    // Show preview immediately
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      setProfilePhoto(ev.target.result);
-    };
+    reader.onload = (ev) => setProfilePhoto(ev.target.result);
     reader.readAsDataURL(file);
+
+    // Upload to backend
+    setPhotoUploading(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/uploadPhoto', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Upload failed');
+      if (data.photoUrl && data.photoUrl.startsWith('http')) setProfilePhoto(data.photoUrl);
+      console.log('✅ Photo uploaded:', data.photoUrl);
+    } catch (err) {
+      console.error('Photo upload failed:', err.message);
+    } finally {
+      setPhotoUploading(false);
+    }
   };
 
   const handleEditPhotoUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      setEditPhoto(ev.target.result);
-    };
+    reader.onload = (ev) => setEditPhoto(ev.target.result);
     reader.readAsDataURL(file);
   };
 
-  const handleEditSave = () => {
-    setSavedProfile({ ...editForm });
-    if (editPhoto) {
-      setProfilePhoto(editPhoto);
-      setEditPhoto(null);
+  // Edit profile save — calls API
+  const handleEditSaveWithSync = async () => {
+    if (!editForm.name?.trim()) { setProfileSaveError('Name is required'); return; }
+    setProfileSaving(true);
+    setProfileSaveError('');
+    try {
+      const token = localStorage.getItem('authToken');
+
+      // 1. Save profile via API
+      const res = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          displayName: editForm.name.trim(),
+          fullName: editForm.name.trim(),
+          subject: editForm.subject,
+          hourlyRate: editForm.hourlyRate,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to update profile');
+
+      // 2. If photo changed, upload it
+      if (editPhoto && editPhoto !== profilePhoto && editPhoto.startsWith('data:')) {
+        const blob = await fetch(editPhoto).then(r => r.blob());
+        const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+        const formData = new FormData();
+        formData.append('file', file);
+        await fetch('/api/uploadPhoto', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        setProfilePhoto(editPhoto);
+      }
+
+      // 3. Update local state
+      setSavedProfile({ ...editForm });
+      localStorage.setItem('userName', editForm.name.trim());
+      setEditProfileOpen(false);
+    } catch (err) {
+      setProfileSaveError(err.message || 'Failed to save changes');
+    } finally {
+      setProfileSaving(false);
     }
-    setEditProfileOpen(false);
-    editPhotoRef.current = null;
+  };
+
+  const handleAddAvailability = async () => {
+    if (!availabilityForm.startTime || !availabilityForm.endTime) { alert('Please fill in all fields'); return; }
+    const token = localStorage.getItem('authToken');
+    try {
+      const res = await fetch('/api/availability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ...availabilityForm, recurringWeekly: availabilityForm.isRecurring }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData?.message || 'Failed to add availability');
+      }
+      const createdResponse = await res.json();
+      const createdSlot = normalizeAvailabilitySlot(createdResponse?.data || createdResponse);
+      if (createdSlot) setAvailableSlots(prev => [createdSlot, ...prev]);
+      setAvailabilityModalOpen(false);
+      setAvailabilityForm({ dayOfWeek: 'MONDAY', startTime: '09:00', endTime: '17:00', subject: subjects[0]?.name || '', isRecurring: true });
+      alert('Availability added successfully!');
+    } catch (error) {
+      alert(error.message || 'Failed to add availability.');
+    }
   };
 
   const renderContent = () => {
     if (!approvalStatusLoading && approvalStatus !== 'APPROVED') {
       return (
         <div className="page-content" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-          <div className="card" style={{ maxWidth: '480px', textAlign: 'center', padding: '40px 32px' }}>
+          <div className="card" style={{ maxWidth: '480px', textAlign: 'center', padding: '44px 36px' }}>
             {approvalStatus === 'REJECTED' ? (
               <>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>❌</div>
-                <h2 style={{ color: 'var(--error)', marginBottom: '12px' }}>Application Rejected</h2>
-                <p style={{ color: 'var(--text)', lineHeight: '1.6' }}>
-                  Your tutor application has been rejected. Please contact support for more information.
-                </p>
+                <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'var(--error-light)', border: '3px solid #FECACA', margin: '0 auto 18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px' }}>❌</div>
+                <h2 style={{ fontFamily: "'Sora',sans-serif", color: 'var(--error)', marginBottom: '12px', fontSize: '20px', fontWeight: 800 }}>Application Rejected</h2>
+                <p style={{ color: 'var(--text-muted)', lineHeight: '1.65', fontSize: '14px' }}>Your application was rejected. Please contact support for more details and next steps.</p>
               </>
             ) : (
               <>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
-                <h2 style={{ color: '#FF9800', marginBottom: '12px' }}>Application Under Review</h2>
-                <p style={{ color: 'var(--text)', lineHeight: '1.6' }}>
-                  Your tutor application is currently under review. You'll receive a notification once approved.
-                </p>
+                <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'var(--warning-light)', border: '3px solid #FDE68A', margin: '0 auto 18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px' }}>⏳</div>
+                <h2 style={{ fontFamily: "'Sora',sans-serif", color: 'var(--warning)', marginBottom: '12px', fontSize: '20px', fontWeight: 800 }}>Application Under Review</h2>
+                <p style={{ color: 'var(--text-muted)', lineHeight: '1.65', fontSize: '14px' }}>Your profile is being reviewed by our admin team. You'll receive a notification once approved.</p>
               </>
             )}
-            <button className="btn-ghost" onClick={handleLogoutClick} style={{ marginTop: '24px' }}>
-              Log Out
-            </button>
+            <button className="btn-ghost" onClick={() => setLogoutConfirmOpen(true)} style={{ marginTop: '24px' }}>🚪 Log Out</button>
           </div>
         </div>
       );
@@ -490,78 +415,79 @@ function TutorDashboard() {
 
     if (activeNav === 'dashboard') {
       return (
-        <div className="page-content">
+        <div className="page-content tt-a0">
           <div className="page-header">
-            <h1 className="page-title">Welcome, {firstName}! 👋</h1>
-            <p className="page-subtitle">Manage your tutoring sessions and availability.</p>
+            <div>
+              <h1 className="page-title">Welcome, {firstName}! 👋</h1>
+              <p className="page-subtitle">Manage your tutoring sessions and availability.</p>
+            </div>
           </div>
 
-          {/* APPROVAL STATUS BANNER */}
+          {/* Approval status banner */}
           {!approvalStatusLoading && (
             <div style={{
-              padding: '16px',
-              borderRadius: '8px',
-              marginBottom: '24px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              background: approvalStatus === 'APPROVED' ? 'rgba(76, 175, 80, 0.1)' :
-                         approvalStatus === 'REJECTED' ? 'rgba(244, 67, 54, 0.1)' :
-                         'rgba(255, 152, 0, 0.1)',
-              border: `2px solid ${
-                approvalStatus === 'APPROVED' ? '#4CAF50' :
-                approvalStatus === 'REJECTED' ? '#F44336' :
-                '#FF9800'
-              }`
+              padding: '14px 18px', borderRadius: '14px', marginBottom: '24px',
+              display: 'flex', alignItems: 'center', gap: '14px',
+              background: approvalStatus === 'APPROVED' ? 'var(--success-light)' : 'var(--warning-light)',
+              border: `1.5px solid ${approvalStatus === 'APPROVED' ? '#A7F3D0' : '#FDE68A'}`,
             }}>
-              <span style={{ fontSize: '20px' }}>
-                {approvalStatus === 'APPROVED' ? '✅' :
-                 approvalStatus === 'REJECTED' ? '❌' :
-                 '⏳'}
-              </span>
+              <div style={{ width: '40px', height: '40px', borderRadius: '10px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', background: approvalStatus === 'APPROVED' ? '#D1FAE5' : '#FEF3C7' }}>
+                {approvalStatus === 'APPROVED' ? '✅' : '⏳'}
+              </div>
               <div>
-                <div style={{ fontWeight: 600, color: 'var(--text)' }}>
-                  {approvalStatus === 'APPROVED' ? '🎉 Your Profile is Approved!' :
-                   approvalStatus === 'REJECTED' ? '⚠️ Your Profile was Rejected' :
-                   '⏳ Awaiting Admin Approval'}
+                <div style={{ fontWeight: 700, fontSize: '14px', color: approvalStatus === 'APPROVED' ? '#047857' : '#B45309' }}>
+                  {approvalStatus === 'APPROVED' ? '🎉 Profile Approved!' : '⏳ Awaiting Admin Approval'}
                 </div>
-                <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  {approvalStatus === 'APPROVED' ? 'Your profile is visible to students. You can accept bookings now!' :
-                   approvalStatus === 'REJECTED' ? 'Your profile application was rejected. Please contact support for details.' :
-                   'Your profile is under review by our admin team. You\'ll receive a notification once approved.'}
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '3px' }}>
+                  {approvalStatus === 'APPROVED'
+                    ? 'Your profile is visible to students. You can accept bookings now!'
+                    : "Your profile is under review. You'll be notified once approved."}
                 </div>
               </div>
             </div>
           )}
 
           <div className="two-col">
+            {/* Quick Stats */}
             <div className="card">
-              <h2 className="section-title" style={{ marginBottom: 16 }}>Quick Stats</h2>
+              <div className="card-header">
+                <h2 className="section-title">
+                  <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px' }}>📊</div>
+                  Quick Stats
+                </h2>
+              </div>
               {[
-                { label: 'Upcoming Sessions', value: upcomingBookings.length },
-                { label: 'Total Hours This Month', value: '24 hrs' },
-                { label: 'Completed Sessions', value: '18' },
-                { label: 'Average Rating', value: '★★★★★ (4.8)' },
-              ].map(row => (
-                <div key={row.label} className="detail-row">
-                  <span className="detail-label">{row.label}</span>
-                  <span className="detail-value">{row.value}</span>
+                { label: 'Upcoming Sessions',   value: upcomingBookings.length,                              color: 'var(--primary)' },
+                { label: 'Completed Sessions',  value: pastBookings.filter(b => b.status === 'COMPLETED').length, color: 'var(--success)' },
+                { label: 'Available Slots',     value: availableSlots.length,                                color: '#7C3AED' },
+                { label: 'Average Rating',      value: '⭐ N/A',                                             color: 'var(--warning)' },
+              ].map((row, i, arr) => (
+                <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: i < arr.length - 1 ? '1px solid var(--primary-light)' : 'none' }}>
+                  <span style={{ fontSize: '12.5px', color: 'var(--text-light)', fontWeight: 600 }}>{row.label}</span>
+                  <span style={{ fontSize: '14px', fontWeight: 800, color: row.color, fontFamily: "'Sora',sans-serif" }}>{row.value}</span>
                 </div>
               ))}
             </div>
 
+            {/* Upcoming Sessions */}
             <div className="card">
-              <h2 className="section-title" style={{ marginBottom: 16 }}>Upcoming Sessions</h2>
+              <div className="card-header">
+                <h2 className="section-title">
+                  <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px' }}>📅</div>
+                  Upcoming Sessions
+                </h2>
+              </div>
               {upcomingBookings.length === 0 ? (
-                <div style={{ padding: '16px', textAlign: 'center', color: '#888' }}>No upcoming sessions</div>
-              ) : (
-                upcomingBookings.slice(0, 3).map(booking => (
-                  <div key={booking.id} className="booking-card">
-                    <div className="booking-title">{booking.tutor}</div>
-                    <div className="booking-time">{booking.date} • {booking.time}</div>
-                  </div>
-                ))
-              )}
+                <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-light)', fontSize: '13px' }}>
+                  <div style={{ fontSize: '26px', marginBottom: '8px' }}>📭</div>No upcoming sessions
+                </div>
+              ) : upcomingBookings.slice(0, 3).map((booking, i, arr) => (
+                <div key={booking.id} style={{ padding: '11px 0', borderBottom: i < Math.min(arr.length, 3) - 1 ? '1px solid var(--primary-light)' : 'none' }}>
+                  <div style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--navy)', marginBottom: '2px' }}>{booking.tutor}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 600, marginBottom: '2px' }}>{booking.subject}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>📅 {booking.date} · 🕐 {booking.time}</div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -569,144 +495,125 @@ function TutorDashboard() {
     }
 
     if (activeNav === 'availability') {
+      const DAY_COLOR = { MONDAY:'#1558D6', TUESDAY:'#059669', WEDNESDAY:'#B45309', THURSDAY:'#1558D6', FRIDAY:'#0284C7', SATURDAY:'#7C3AED', SUNDAY:'#DC2626' };
+      const DAY_BG    = { MONDAY:'#EBF1FD', TUESDAY:'#F0FDF4', WEDNESDAY:'#FFFBEB', THURSDAY:'#EBF1FD', FRIDAY:'#F0F9FF', SATURDAY:'#F5F3FF', SUNDAY:'#FEF2F2' };
+
       return (
-        <div className="page-content">
+        <div className="page-content tt-a0">
           <div className="page-header">
-            <h1 className="page-title">Manage Availability</h1>
-            <p className="page-subtitle">Add or edit your available time slots.</p>
+            <div>
+              <h1 className="page-title">Manage Availability</h1>
+              <p className="page-subtitle">Add or edit your available time slots for students.</p>
+            </div>
           </div>
 
           <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h2 className="section-title">Your Available Slots</h2>
-              <button className="btn-primary" onClick={() => setAvailabilityModalOpen(true)}>
-                ➕ Add Slot
-              </button>
+            <div className="card-header">
+              <h2 className="section-title">
+                <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px' }}>🗓️</div>
+                Your Available Slots
+                {availableSlots.length > 0 && (
+                  <span style={{ background: 'var(--primary-light)', color: 'var(--primary)', border: '1.5px solid #C3D9F8', borderRadius: '20px', padding: '2px 10px', fontSize: '12px', fontWeight: 700 }}>
+                    {availableSlots.length}
+                  </span>
+                )}
+              </h2>
+              <button className="btn-primary" onClick={() => setAvailabilityModalOpen(true)}>➕ Add Slot</button>
             </div>
 
             {slotsLoading ? (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>Loading slots...</div>
+              <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-light)', fontSize: '13px' }}>
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>⏳</div>Loading slots...
+              </div>
             ) : availableSlots.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>
-                No available slots. Click "Add Slot" to create one.
+              <div style={{ textAlign: 'center', padding: '40px 24px', border: '1.5px dashed #C3D9F8', borderRadius: '12px', background: 'var(--bg)' }}>
+                <div style={{ fontSize: '32px', marginBottom: '10px' }}>📭</div>
+                <p style={{ fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px', fontSize: '14px' }}>No available slots yet</p>
+                <p style={{ fontSize: '13px', color: 'var(--text-light)' }}>Click "Add Slot" to create your first availability.</p>
               </div>
             ) : (
-              <div style={{ display: 'grid', gap: '12px' }}>
-                {availableSlots.map(slot => (
-                  <div key={slot.id} className="availability-card" style={{
-                    padding: '12px 16px',
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                  }}>
-                    <div>
-                      <div style={{ fontWeight: 600, color: 'var(--text)' }}>{slot.dayOfWeek}</div>
-                      <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                        {slot.startTime} - {slot.endTime} • {slot.subject}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
+                {availableSlots.map(slot => {
+                  const color = DAY_COLOR[slot.dayOfWeek] || 'var(--primary)';
+                  const bg    = DAY_BG[slot.dayOfWeek]    || 'var(--primary-light)';
+                  return (
+                    <div key={slot.id} style={{ padding: '14px 16px', border: `1.5px solid ${color}28`, borderRadius: '12px', background: bg, position: 'relative' }}>
+                      <div style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: '13.5px', color, marginBottom: '4px' }}>
+                        {slot.dayOfWeek}
                       </div>
+                      <div style={{ fontSize: '13px', color: 'var(--navy)', fontWeight: 600, marginBottom: '3px' }}>
+                        🕐 {slot.startTime} – {slot.endTime}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                        📚 {slot.subject}
+                      </div>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '4px',
+                        background: slot.isRecurring ? 'var(--success-light)' : 'var(--bg)',
+                        color: slot.isRecurring ? '#047857' : 'var(--text-muted)',
+                        border: `1.5px solid ${slot.isRecurring ? '#A7F3D0' : 'var(--border)'}`,
+                        padding: '3px 10px', borderRadius: '20px', fontSize: '11.5px', fontWeight: 700,
+                      }}>
+                        {slot.isRecurring ? '🔁 Recurring' : '📌 One-time'}
+                      </span>
                     </div>
-                    <span style={{ 
-                      background: slot.isRecurring ? 'var(--success-light)' : 'var(--bg)',
-                      color: slot.isRecurring ? 'var(--success)' : 'var(--text-muted)',
-                      padding: '4px 12px',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      fontWeight: 600
-                    }}>
-                      {slot.isRecurring ? 'Recurring' : 'One-time'}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
 
-          {/* ADD AVAILABILITY MODAL */}
+          {/* ADD SLOT MODAL */}
           {availabilityModalOpen && (
             <div className="modal-overlay" onClick={() => setAvailabilityModalOpen(false)}>
               <div className="modal-box" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
-                  <h2 className="modal-title">Add Availability</h2>
+                  <h2 className="modal-title">🗓️ Add Availability Slot</h2>
                   <button className="modal-close" onClick={() => setAvailabilityModalOpen(false)}>✕</button>
                 </div>
-
                 <div className="modal-body">
                   <div className="modal-field">
                     <label className="modal-label">Day of Week</label>
-                    <select
-                      className="modal-input"
-                      value={availabilityForm.dayOfWeek}
-                      onChange={e => setAvailabilityForm({ ...availabilityForm, dayOfWeek: e.target.value })}
-                    >
-                      <option>MONDAY</option>
-                      <option>TUESDAY</option>
-                      <option>WEDNESDAY</option>
-                      <option>THURSDAY</option>
-                      <option>FRIDAY</option>
-                      <option>SATURDAY</option>
-                      <option>SUNDAY</option>
+                    <select className="modal-input" value={availabilityForm.dayOfWeek}
+                      onChange={e => setAvailabilityForm({ ...availabilityForm, dayOfWeek: e.target.value })}>
+                      {['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'].map(d => <option key={d}>{d}</option>)}
                     </select>
                   </div>
-
                   <div className="modal-field">
                     <label className="modal-label">Start Time</label>
-                    <input
-                      className="modal-input"
-                      type="time"
-                      value={availabilityForm.startTime}
-                      onChange={e => setAvailabilityForm({ ...availabilityForm, startTime: e.target.value })}
-                    />
+                    <input className="modal-input" type="time" value={availabilityForm.startTime}
+                      onChange={e => setAvailabilityForm({ ...availabilityForm, startTime: e.target.value })} />
                   </div>
-
                   <div className="modal-field">
                     <label className="modal-label">End Time</label>
-                    <input
-                      className="modal-input"
-                      type="time"
-                      value={availabilityForm.endTime}
-                      onChange={e => setAvailabilityForm({ ...availabilityForm, endTime: e.target.value })}
-                    />
+                    <input className="modal-input" type="time" value={availabilityForm.endTime}
+                      onChange={e => setAvailabilityForm({ ...availabilityForm, endTime: e.target.value })} />
                   </div>
-
                   <div className="modal-field">
                     <label className="modal-label">Subject</label>
-                    <select
-                      className="modal-input"
-                      value={availabilityForm.subject}
-                      onChange={e => setAvailabilityForm({ ...availabilityForm, subject: e.target.value })}
-                    >
+                    <select className="modal-input" value={availabilityForm.subject}
+                      onChange={e => setAvailabilityForm({ ...availabilityForm, subject: e.target.value })}>
                       <option value="">-- Select a Subject --</option>
-                      {subjectsLoading ? (
-                        <option disabled>Loading subjects...</option>
-                      ) : subjects.length === 0 ? (
-                        <option disabled>No subjects available</option>
-                      ) : (
-                        subjects.map(subj => (
-                          <option key={subj.id} value={subj.name}>
-                            {subj.name}
-                          </option>
-                        ))
-                      )}
+                      {subjectsLoading
+                        ? <option disabled>Loading...</option>
+                        : subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                     </select>
                   </div>
-
                   <div className="modal-field">
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={availabilityForm.isRecurring}
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '10px 14px', background: 'var(--bg)', borderRadius: '10px', border: '1.5px solid var(--border)' }}>
+                      <input type="checkbox" checked={availabilityForm.isRecurring}
                         onChange={e => setAvailabilityForm({ ...availabilityForm, isRecurring: e.target.checked })}
-                      />
-                      <span className="modal-label" style={{ margin: 0 }}>Recurring weekly</span>
+                        style={{ width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }} />
+                      <div>
+                        <span className="modal-label" style={{ margin: 0, display: 'block' }}>Recurring weekly</span>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 400 }}>This slot will repeat every week</span>
+                      </div>
                     </label>
                   </div>
                 </div>
-
                 <div className="modal-footer">
                   <button className="btn-ghost" onClick={() => setAvailabilityModalOpen(false)}>Cancel</button>
-                  <button className="btn-primary" onClick={handleAddAvailability}>Add Slot</button>
+                  <button className="btn-primary" onClick={handleAddAvailability}>➕ Add Slot</button>
                 </div>
               </div>
             </div>
@@ -716,122 +623,71 @@ function TutorDashboard() {
     }
 
     if (activeNav === 'bookings') {
+      const list = bookingTab === 'upcoming' ? upcomingBookings : pastBookings;
+      const STATUS_ACCENT = { CONFIRMED:'#059669', PENDING:'#D97706', CANCELLED:'#DC2626', COMPLETED:'#1558D6' };
       return (
-        <div className="page-content">
+        <div className="page-content tt-a0">
           <div className="page-header">
-            <h1 className="page-title">My Bookings</h1>
-            <p className="page-subtitle">View your upcoming and past sessions.</p>
+            <div>
+              <h1 className="page-title">My Bookings</h1>
+              <p className="page-subtitle">View your upcoming and past sessions.</p>
+            </div>
           </div>
 
-          <div className="card">
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
-              <button
-                className={`btn-tab ${bookingTab === 'upcoming' ? 'active' : ''}`}
-                onClick={() => setBookingTab('upcoming')}
-                style={{
-                  padding: '10px 20px',
-                  border: 'none',
-                  background: 'transparent',
-                  cursor: 'pointer',
-                  fontWeight: bookingTab === 'upcoming' ? '700' : '500',
-                  color: bookingTab === 'upcoming' ? 'var(--primary)' : 'var(--text-muted)',
-                  borderBottom: bookingTab === 'upcoming' ? '2px solid var(--primary)' : 'none',
-                  marginBottom: '-10px'
-                }}
-              >
-                Upcoming ({upcomingBookings.length})
-              </button>
-              <button
-                className={`btn-tab ${bookingTab === 'past' ? 'active' : ''}`}
-                onClick={() => setBookingTab('past')}
-                style={{
-                  padding: '10px 20px',
-                  border: 'none',
-                  background: 'transparent',
-                  cursor: 'pointer',
-                  fontWeight: bookingTab === 'past' ? '700' : '500',
-                  color: bookingTab === 'past' ? 'var(--primary)' : 'var(--text-muted)',
-                  borderBottom: bookingTab === 'past' ? '2px solid var(--primary)' : 'none',
-                  marginBottom: '-10px'
-                }}
-              >
-                Past ({pastBookings.length})
-              </button>
-            </div>
+          {/* Pill tabs */}
+          <div style={{ display: 'flex', gap: '4px', background: 'var(--primary-light)', borderRadius: '12px', padding: '4px', marginBottom: '20px', width: 'fit-content' }}>
+            {[
+              { key: 'upcoming', label: `Upcoming (${upcomingBookings.length})` },
+              { key: 'past',     label: `Past (${pastBookings.length})` },
+            ].map(({ key, label }) => (
+              <button key={key} onClick={() => setBookingTab(key)} style={{
+                background: bookingTab === key ? '#fff' : 'transparent',
+                border: 'none', borderRadius: '9px', padding: '8px 20px',
+                fontSize: '13px', fontWeight: bookingTab === key ? 700 : 500,
+                color: bookingTab === key ? 'var(--primary)' : 'var(--text-muted)',
+                cursor: 'pointer', boxShadow: bookingTab === key ? '0 1px 4px rgba(8,33,62,.10)' : 'none',
+                transition: 'all .15s', fontFamily: 'inherit',
+              }}>{label}</button>
+            ))}
+          </div>
 
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {bookingsLoading ? (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>Loading bookings...</div>
-            ) : bookingTab === 'upcoming' ? (
-              upcomingBookings.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>No upcoming bookings</div>
-              ) : (
-                upcomingBookings.map(booking => (
-                  <div key={booking.id} className="booking-card" style={{ marginBottom: '12px', padding: '16px', border: '1px solid var(--border)', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                      <div>
-                        <div style={{ fontWeight: 600 }}>{booking.tutor}</div>
-                        <div style={{ fontSize: '13px', color: 'var(--primary)', marginTop: '4px', fontWeight: 600 }}>
-                          {booking.subject}
-                        </div>
-                        <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                          📅 {booking.date} • 🕐 {booking.time}
-                        </div>
-                        <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                          📍 {booking.location || 'TBD'}
-                        </div>
-                        {(booking.durationMinutes || booking.price) && (
-                          <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                            {booking.durationMinutes ? `⏱️ ${booking.durationMinutes} mins` : ''}
-                            {booking.durationMinutes && booking.price ? ' • ' : ''}
-                            {booking.price ? `💵 ${booking.price}` : ''}
-                          </div>
-                        )}
-                      </div>
-                      <span style={{
-                        background: 'var(--success-light)',
-                        color: 'var(--success)',
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        fontWeight: 600
-                      }}>
-                        {booking.status}
-                      </span>
-                    </div>
+              <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-light)', fontSize: '13px' }}>
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>⏳</div>Loading...
+              </div>
+            ) : list.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '48px 24px', background: '#fff', borderRadius: '16px', border: '1.5px dashed #C3D9F8' }}>
+                <div style={{ fontSize: '32px', marginBottom: '10px' }}>📭</div>
+                <p style={{ fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>No {bookingTab} bookings</p>
+              </div>
+            ) : list.map(booking => {
+              const accent = STATUS_ACCENT[(booking.status||'').toUpperCase()] || 'var(--text-light)';
+              return (
+                <div key={booking.id} style={{
+                  background: '#fff', borderRadius: '14px', padding: '15px 18px',
+                  border: '1.5px solid var(--border)', borderLeft: `4px solid ${accent}`,
+                  boxShadow: '0 1px 3px rgba(8,33,62,.05),0 4px 14px rgba(8,33,62,.06)',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px',
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: '14.5px', color: 'var(--navy)', marginBottom: '3px' }}>{booking.tutor}</div>
+                    <div style={{ fontSize: '12.5px', color: 'var(--primary)', fontWeight: 600, marginBottom: '6px' }}>{booking.subject}</div>
+                    <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', fontWeight: 500 }}>📅 {booking.dayLabel || booking.date} · 🕐 {booking.timeRange || booking.time}</div>
+                    <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', fontWeight: 500, marginTop: '2px' }}>📍 {booking.location || 'TBD'}</div>
                   </div>
-                ))
-              )
-            ) : (
-              pastBookings.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>No past bookings</div>
-              ) : (
-                pastBookings.map(booking => (
-                  <div key={booking.id} className="booking-card" style={{ marginBottom: '12px', padding: '16px', border: '1px solid var(--border)', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                      <div>
-                        <div style={{ fontWeight: 600 }}>{booking.tutor}</div>
-                        <div style={{ fontSize: '13px', color: 'var(--primary)', marginTop: '4px', fontWeight: 600 }}>
-                          {booking.subject}
-                        </div>
-                        <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                          📅 {booking.date} • 🕐 {booking.time}
-                        </div>
-                      </div>
-                      <span style={{
-                        background: booking.status === 'COMPLETED' ? 'var(--success-light)' : 'var(--error-light)',
-                        color: booking.status === 'COMPLETED' ? 'var(--success)' : 'var(--error)',
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        fontWeight: 600
-                      }}>
-                        {booking.status}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )
-            )}
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center',
+                    background: booking.status === 'CONFIRMED' ? 'var(--success-light)' : booking.status === 'CANCELLED' ? 'var(--error-light)' : booking.status === 'COMPLETED' ? 'var(--primary-light)' : 'var(--bg)',
+                    color: booking.status === 'CONFIRMED' ? '#047857' : booking.status === 'CANCELLED' ? 'var(--error)' : booking.status === 'COMPLETED' ? 'var(--primary)' : 'var(--text-muted)',
+                    border: `1.5px solid ${booking.status === 'CONFIRMED' ? '#A7F3D0' : booking.status === 'CANCELLED' ? '#FECACA' : booking.status === 'COMPLETED' ? '#C3D9F8' : 'var(--border)'}`,
+                    padding: '4px 11px', borderRadius: '20px', fontSize: '11.5px', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
+                  }}>
+                    {booking.status}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       );
@@ -839,159 +695,169 @@ function TutorDashboard() {
 
     if (activeNav === 'profile') {
       return (
-        <div className="page-content">
+        <div className="page-content tt-a0">
+          {pwModalOpen && <ChangePasswordModal onClose={() => setPwModalOpen(false)} />}
+
           <div className="page-header">
-            <h1 className="page-title">Tutor Profile</h1>
-            <p className="page-subtitle">Manage your tutoring profile and credentials.</p>
+            <div>
+              <h1 className="page-title">Tutor Profile</h1>
+              <p className="page-subtitle">Manage your tutoring profile and credentials.</p>
+            </div>
           </div>
 
-          <div className="card profile-hero">
-            <div className="photo-upload-wrapper" onClick={() => photoInputRef.current.click()} title="Click to change photo">
-              <Avatar initials={userInitials} size={80} photoUrl={profilePhoto} />
-              <div className="photo-upload-overlay">
-                <span className="photo-camera-icon">📷</span>
-              </div>
-              <input
-                type="file"
-                ref={photoInputRef}
-                accept="image/*"
-                style={{ display: 'none' }}
-                onChange={handlePhotoUpload}
-              />
+          {/* PROFILE HERO with gradient banner */}
+          <div className="card" style={{ marginBottom: '22px', overflow: 'hidden' }}>
+            <div style={{ height: '88px', background: 'linear-gradient(135deg,#2E71F0 0%,#1045B8 60%,#0B2F7E 100%)', position: 'relative' }}>
+              <div style={{ position: 'absolute', inset: 0, opacity: .15, backgroundImage: 'radial-gradient(circle,#fff 1px,transparent 1px)', backgroundSize: '20px 20px' }} />
             </div>
 
-            <div className="profile-hero-info">
-              <div className="profile-hero-name">{displayName}</div>
-              <div className="profile-hero-email">{userEmail}</div>
-              <div className="profile-hero-badges">
-                <span className="tag">{savedProfile.subject}</span>
-                <span className="badge-verified">
-                  {approvalStatus === 'APPROVED' ? '✓ Verified Tutor' :
-                   approvalStatus === 'REJECTED' ? '✕ Not Approved' :
-                   '⏳ Pending Approval'}
-                </span>
+            <div style={{ padding: '0 26px 24px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                  {/* avatar — overlaps banner */}
+                  <div className="photo-upload-wrapper" style={{ position: 'relative', marginTop: '-44px', border: '4px solid #fff', borderRadius: '50%', boxShadow: '0 4px 16px rgba(8,33,62,.15)', width: '88px', height: '88px', flexShrink: 0 }}>
+                    {photoUploading && (
+                      <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'rgba(0,0,0,.50)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>⏳</div>
+                    )}
+                    <div onClick={() => photoInputRef.current?.click()} style={{ cursor: 'pointer' }}>
+                      <Avatar initials={userInitials} size={80} photoUrl={profilePhoto} />
+                      <div className="photo-upload-overlay"><span className="photo-camera-icon">📷</span></div>
+                    </div>
+                    <div style={{ position: 'absolute', bottom: '2px', right: '2px', width: '22px', height: '22px', borderRadius: '50%', background: 'var(--primary)', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px' }}>📷</div>
+                    <input type="file" ref={photoInputRef} accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={handlePhotoUploadWithSync} />
+                  </div>
+
+                  <div style={{ paddingTop: '10px' }}>
+                    <div style={{ fontFamily: "'Sora',sans-serif", fontSize: '19px', fontWeight: 800, color: 'var(--navy)', letterSpacing: '-0.3px', marginBottom: '3px' }}>{displayName}</div>
+                    <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '8px' }}>{userEmail}</div>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, background: 'var(--primary-light)', color: 'var(--primary)', borderRadius: '6px', padding: '3px 10px' }}>
+                        {savedProfile.subject || 'Tutor'}
+                      </span>
+                      <span style={{
+                        fontSize: '11px', fontWeight: 700, borderRadius: '6px', padding: '3px 10px',
+                        background: approvalStatus === 'APPROVED' ? 'var(--success-light)' : approvalStatus === 'REJECTED' ? 'var(--error-light)' : 'var(--warning-light)',
+                        color: approvalStatus === 'APPROVED' ? '#047857' : approvalStatus === 'REJECTED' ? 'var(--error)' : 'var(--warning)',
+                        border: `1.5px solid ${approvalStatus === 'APPROVED' ? '#A7F3D0' : approvalStatus === 'REJECTED' ? '#FECACA' : '#FDE68A'}`,
+                      }}>
+                        {approvalStatus === 'APPROVED' ? '✓ Verified Tutor' : approvalStatus === 'REJECTED' ? '✕ Not Approved' : '⏳ Pending Approval'}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '5px', fontStyle: 'italic' }}>
+                      {photoUploading ? '⏳ Uploading...' : 'Click your photo to update it'}
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '148px', paddingTop: '10px' }}>
+                  <button className="btn-primary" onClick={() => {
+                    setEditForm({ name: displayName, subject: savedProfile.subject, hourlyRate: savedProfile.hourlyRate });
+                    setEditPhoto(profilePhoto);
+                    setProfileSaveError('');
+                    setEditProfileOpen(true);
+                  }}>✏️ Edit Profile</button>
+                  <button className="btn-ghost" onClick={() => setPwModalOpen(true)} style={{ justifyContent: 'center' }}>🔑 Change Password</button>
+                </div>
               </div>
-              <p className="photo-hint">Click your photo to update it</p>
             </div>
-            <button className="btn-primary" onClick={() => {
-              setEditForm({
-                name: displayName,
-                subject: savedProfile.subject,
-                bio: savedProfile.bio,
-                hourlyRate: savedProfile.hourlyRate,
-              });
-              setEditPhoto(profilePhoto);
-              setEditProfileOpen(true);
-            }}>
-              ✏️ Edit Profile
-            </button>
           </div>
 
+          {/* DETAILS */}
           <div className="two-col">
             <div className="card">
-              <h2 className="section-title" style={{ marginBottom: 16 }}>Profile Information</h2>
+              <div className="card-header">
+                <h2 className="section-title">
+                  <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px' }}>👤</div>
+                  Profile Information
+                </h2>
+              </div>
               {[
-                { label: 'Full Name', value: displayName },
-                { label: 'Email', value: userEmail },
-                { label: 'Subject', value: savedProfile.subject },
-                { label: 'Hourly Rate', value: `$${savedProfile.hourlyRate}/hour` },
-              ].map(row => (
-                <div key={row.label} className="detail-row">
-                  <span className="detail-label">{row.label}</span>
-                  <span className="detail-value">{row.value}</span>
+                { label: 'Full Name',        value: displayName },
+                { label: 'Email',            value: userEmail },
+                { label: 'Subject',          value: savedProfile.subject || '—' },
+                { label: 'Hourly Rate',      value: savedProfile.hourlyRate ? `₱${savedProfile.hourlyRate}/hr` : '—' },
+                { label: 'Approval Status',  value: approvalStatus },
+              ].map((row, i, arr) => (
+                <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: i < arr.length - 1 ? '1px solid var(--primary-light)' : 'none' }}>
+                  <span style={{ fontSize: '12.5px', color: 'var(--text-light)', fontWeight: 600 }}>{row.label}</span>
+                  <span style={{ fontSize: '13px', color: 'var(--navy)', fontWeight: 600, textAlign: 'right', maxWidth: '60%' }}>{row.value}</span>
                 </div>
               ))}
             </div>
 
             <div className="card">
-              <h2 className="section-title" style={{ marginBottom: 16 }}>Bio</h2>
-              <p style={{ color: 'var(--text)', lineHeight: 1.6, margin: 0 }}>{savedProfile.bio}</p>
+              <div className="card-header">
+                <h2 className="section-title">
+                  <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px' }}>📊</div>
+                  Session Statistics
+                </h2>
+              </div>
+              <div style={{ textAlign: 'center', padding: '28px 0', color: 'var(--text-light)', fontSize: '13px' }}>
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>📭</div>No sessions yet.
+              </div>
             </div>
           </div>
 
           {/* EDIT PROFILE MODAL */}
           {editProfileOpen && (
             <div className="modal-overlay" onClick={() => setEditProfileOpen(false)}>
-              <div className="modal-box" onClick={e => e.stopPropagation()}>
+              <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px' }}>
                 <div className="modal-header">
-                  <h2 className="modal-title">Edit Tutor Profile</h2>
+                  <h2 className="modal-title">✏️ Edit Tutor Profile</h2>
                   <button className="modal-close" onClick={() => setEditProfileOpen(false)}>✕</button>
                 </div>
-
-                <div className="modal-body">
+                <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                  {profileSaveError && (
+                    <div style={{ padding: '10px 14px', background: 'var(--error-light)', border: '1.5px solid #FECACA', borderRadius: '10px', color: 'var(--error)', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      ⚠️ {profileSaveError}
+                    </div>
+                  )}
                   <div className="modal-field">
                     <label className="modal-label">Profile Photo</label>
-                    <div className="photo-input-wrapper">
-                      <div 
-                        className="photo-preview"
-                        onClick={() => editPhotoRef.current?.click()}
-                        title="Click to upload photo"
-                      >
-                        {editPhoto ? (
-                          <img src={editPhoto} alt="Profile preview" className="photo-preview-img" />
-                        ) : (
-                          <div className="photo-placeholder">📷 Click to upload photo</div>
-                        )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <div className="photo-preview" onClick={() => editPhotoRef.current?.click()} style={{ flexShrink: 0 }}>
+                        {editPhoto ? <img src={editPhoto} alt="Preview" className="photo-preview-img" /> : <div className="photo-placeholder">📷<br/>Upload photo</div>}
                       </div>
-                      <input
-                        type="file"
-                        ref={editPhotoRef}
-                        accept="image/*"
-                        style={{ display: 'none' }}
-                        onChange={handleEditPhotoUpload}
-                      />
+                      <div>
+                        <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: '8px' }}>JPG, PNG, WebP · Max 5MB.</div>
+                        <button type="button" className="btn-ghost" onClick={() => editPhotoRef.current?.click()} style={{ fontSize: '12px', padding: '6px 12px' }}>
+                          📷 {editPhoto ? 'Change' : 'Upload'}
+                        </button>
+                      </div>
+                      <input type="file" ref={editPhotoRef} accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={handleEditPhotoUpload} />
                     </div>
                   </div>
-
                   <div className="modal-field">
-                    <label className="modal-label">Full Name</label>
-                    <input
-                      className="modal-input"
-                      value={editForm.name}
+                    <label className="modal-label">Full Name <span style={{ color: 'var(--error)' }}>*</span></label>
+                    <input className="modal-input" value={editForm.name}
                       onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                      placeholder="Enter your full name"
-                    />
+                      placeholder="Enter your full name" disabled={profileSaving}
+                      style={{ width: '100%', boxSizing: 'border-box' }} />
                   </div>
-
                   <div className="modal-field">
-                    <label className="modal-label">Subject</label>
-                    <input
-                      className="modal-input"
-                      value={editForm.subject}
+                    <label className="modal-label">Subject / Specialization</label>
+                    <input className="modal-input" value={editForm.subject}
                       onChange={e => setEditForm({ ...editForm, subject: e.target.value })}
-                      placeholder="e.g. Mathematics"
-                    />
+                      placeholder="e.g. Mathematics, Physics" disabled={profileSaving}
+                      style={{ width: '100%', boxSizing: 'border-box' }} />
                   </div>
-
                   <div className="modal-field">
-                    <label className="modal-label">Hourly Rate ($)</label>
-                    <input
-                      className="modal-input"
-                      type="number"
-                      value={editForm.hourlyRate}
-                      onChange={e => setEditForm({ ...editForm, hourlyRate: e.target.value })}
-                      placeholder="e.g. 25"
-                      min="5"
-                      max="100"
-                    />
-                  </div>
-
-                  <div className="modal-field">
-                    <label className="modal-label">Bio</label>
-                    <textarea
-                      className="modal-input"
-                      value={editForm.bio}
-                      onChange={e => setEditForm({ ...editForm, bio: e.target.value })}
-                      placeholder="Tell students about your tutoring experience..."
-                      rows={4}
-                      style={{ resize: 'vertical', fontFamily: 'inherit', padding: '10px 14px' }}
-                    />
+                    <label className="modal-label">Hourly Rate (₱)</label>
+                    <div style={{ position: 'relative' }}>
+                      <span style={{ position: 'absolute', left: '13px', top: '50%', transform: 'translateY(-50%)', fontSize: '13.5px', fontWeight: 700, color: 'var(--text-muted)' }}>₱</span>
+                      <input className="modal-input" type="number" value={editForm.hourlyRate}
+                        onChange={e => setEditForm({ ...editForm, hourlyRate: e.target.value })}
+                        placeholder="e.g. 250" min="50" max="2000" disabled={profileSaving}
+                        style={{ width: '100%', boxSizing: 'border-box', paddingLeft: '28px' }} />
+                    </div>
                   </div>
                 </div>
-
                 <div className="modal-footer">
-                  <button className="btn-ghost" onClick={() => setEditProfileOpen(false)}>Cancel</button>
-                  <button className="btn-primary" onClick={handleEditSave}>Save Changes</button>
+                  <button className="btn-ghost" onClick={() => setEditProfileOpen(false)} disabled={profileSaving}>Cancel</button>
+                  <button className="btn-primary" onClick={handleEditSaveWithSync}
+                    disabled={profileSaving || !editForm.name?.trim()} style={{ opacity: profileSaving ? 0.7 : 1 }}>
+                    {profileSaving ? '⏳ Saving...' : '✅ Save Changes'}
+                  </button>
                 </div>
               </div>
             </div>
@@ -1003,66 +869,56 @@ function TutorDashboard() {
 
   return (
     <div className="dashboard-root">
-      {/* LOGOUT CONFIRMATION MODAL */}
       {logoutConfirmOpen && (
         <div className="modal-overlay" onClick={() => setLogoutConfirmOpen(false)}>
           <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
             <div className="modal-header">
-              <h2 className="modal-title">Confirm Logout</h2>
+              <h2 className="modal-title">🚪 Confirm Logout</h2>
               <button className="modal-close" onClick={() => setLogoutConfirmOpen(false)}>✕</button>
             </div>
             <div className="modal-body">
-              <p style={{ margin: 0, color: 'var(--text)', lineHeight: '1.6' }}>
-                Are you sure you want to logout? You'll need to login again to access your account.
-              </p>
+              <p style={{ margin: 0, color: 'var(--text-muted)', lineHeight: '1.65', fontSize: '14px' }}>Are you sure you want to logout? You'll need to sign in again to access your account.</p>
             </div>
             <div className="modal-footer">
               <button className="btn-ghost" onClick={() => setLogoutConfirmOpen(false)}>Cancel</button>
-              <button className="btn-primary" onClick={handleLogout} style={{ background: 'var(--error)' }}>Logout</button>
+              <button className="btn-primary" onClick={handleLogout} style={{ background: 'linear-gradient(135deg,#DC2626,#B91C1C)', boxShadow: '0 4px 14px rgba(220,38,38,.28)' }}>🚪 Logout</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* TOPBAR */}
       <header className="topbar">
         <div className="topbar-logo">
           <div className="topbar-logo-circle">T</div>
           <span className="topbar-logo-text">TutorTime</span>
         </div>
-
         <div className="topbar-search">
           <span className="topbar-search-icon">🔍</span>
           <input className="topbar-search-input" placeholder="Search..." disabled />
         </div>
-
         <div className="topbar-right">
           <div className="notif-wrapper">
             <button className="notif-btn" onClick={() => setNotifOpen(!notifOpen)}>
-              🔔
-              {unreadCount > 0 && <span className="notif-badge">{unreadCount}</span>}
+              🔔{unreadCount > 0 && <span className="notif-badge">{unreadCount}</span>}
             </button>
             {notifOpen && (
               <div className="notif-panel">
                 <div className="notif-panel-header">Notifications</div>
-                {notifications.length === 0 ? (
-                  <div style={{ padding: '16px', textAlign: 'center', color: '#888' }}>No notifications</div>
-                ) : (
-                  notifications.map(n => (
+                {notifications.length === 0
+                  ? <div style={{ padding: '20px 16px', textAlign: 'center', color: 'var(--text-light)', fontSize: '13px' }}>
+                      <div style={{ fontSize: '24px', marginBottom: '6px' }}>🔔</div>No notifications
+                    </div>
+                  : notifications.map(n => (
                     <div key={n.id} className={`notif-item ${n.read ? 'read' : 'unread'}`}>
                       <div className="notif-text">{n.text}</div>
                       <div className="notif-time">{n.time}</div>
                     </div>
-                  ))
-                )}
+                  ))}
               </div>
             )}
           </div>
-
           <div className="user-chip">
-            <div className="user-meta">
-              <div className="user-name">{displayName}</div>
-            </div>
+            <div className="user-meta"><div className="user-name">{displayName}</div></div>
             <Avatar initials={userInitials} size={36} photoUrl={profilePhoto} />
           </div>
         </div>
@@ -1071,25 +927,16 @@ function TutorDashboard() {
       <div className="dashboard-body">
         <aside className="sidebar">
           {navItems.map(item => (
-            <button
-              key={item.id}
-              className={`nav-item ${activeNav === item.id ? 'active' : ''}`}
-              onClick={() => handleNavClick(item.id)}
-            >
-              <span className="nav-icon">{item.icon}</span>
-              {item.label}
+            <button key={item.id} className={`nav-item ${activeNav === item.id ? 'active' : ''}`} onClick={() => handleNavClick(item.id)}>
+              <span className="nav-icon">{item.icon}</span>{item.label}
             </button>
           ))}
           <div className="sidebar-spacer" />
-          <button className="nav-item nav-logout" onClick={handleLogoutClick}>
-            <span className="nav-icon">🚪</span>
-            Log Out
+          <button className="nav-item nav-logout" onClick={() => setLogoutConfirmOpen(true)}>
+            <span className="nav-icon">🚪</span>Log Out
           </button>
         </aside>
-
-        <main className="dashboard-main">
-          {renderContent()}
-        </main>
+        <main className="dashboard-main">{renderContent()}</main>
       </div>
     </div>
   );
