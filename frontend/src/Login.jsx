@@ -8,6 +8,17 @@ function Login({ onSwitchToSignUp, onLoginSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const isCitEmail = (value) => /^[a-z0-9._%+-]+@cit\.edu$/.test(String(value || '').trim().toLowerCase());
+
+  const clearStoredTokens = () => {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('token');
+    localStorage.removeItem('accessToken');
+    sessionStorage.removeItem('authToken');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('accessToken');
+  };
+
   const handleLogin = async () => {
     setError('');
     const normalizedEmail = email.trim().toLowerCase();
@@ -17,8 +28,10 @@ function Login({ onSwitchToSignUp, onLoginSuccess }) {
       return;
     }
 
-    if (!/^[a-z0-9._%+-]+@cit\.edu$/.test(normalizedEmail)) {
-      setError('Please use your CIT email address (@cit.edu).');
+    // Allow login attempt for all roles (admin may use non-CIT emails).
+    // CIT enforcement for student/tutor happens after role is resolved.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setError('Please enter a valid email address.');
       return;
     }
 
@@ -57,6 +70,14 @@ function Login({ onSwitchToSignUp, onLoginSuccess }) {
           if (!userRole) {
             setError('Unable to determine your account role. Please contact support.');
             setLoading(false);
+            return;
+          }
+
+          const requiresCitEmail = userRole === 'STUDENT' || userRole === 'TUTOR';
+          if (requiresCitEmail && !isCitEmail(normalizedEmail)) {
+            clearStoredTokens();
+            setError('Students and tutors must use a CIT email address (@cit.edu).');
+            setPassword('');
             return;
           }
 
@@ -112,7 +133,7 @@ function Login({ onSwitchToSignUp, onLoginSuccess }) {
           <span className="input-icon">✉</span>
           <input
             type="email"
-            placeholder="University Email (@cit.edu)"
+            placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={loading}

@@ -167,8 +167,8 @@ export function normalizeBooking(b) {
   
   return {
     ...booking,
-    id: booking.id,
-    status: (booking.status || booking.bookingStatus || 'UNKNOWN').toString().toUpperCase(),
+    id: booking.id || booking.bookingId || booking.uuid,
+    status: (booking.status || booking.bookingStatus || 'UNKNOWN').toString().trim().toUpperCase(),
     tutor: tutorName,
     avatar: booking.avatarInitials || getInitials(tutorName || 'Unknown'),
     date,

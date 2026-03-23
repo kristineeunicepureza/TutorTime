@@ -4,6 +4,7 @@ import './TutorTimeDashboard.css';
 import { getFirstName, getInitials } from './utils/helpers';
 import { Avatar } from './components/Avatar';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
+import { getStoredAuthToken, getTutorBookings } from './apiService';
 
 function TutorDashboard() {
   const [activeNav, setActiveNav] = useState('dashboard');
@@ -84,6 +85,18 @@ function TutorDashboard() {
     };
   };
 
+  const toBookingRows = (payload) => {
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.data)) return payload.data;
+    if (Array.isArray(payload?.data?.data)) return payload.data.data;
+    if (Array.isArray(payload?.bookings)) return payload.bookings;
+    if (Array.isArray(payload?.payload?.bookings)) return payload.payload.bookings;
+    if (Array.isArray(payload?.result)) return payload.result;
+    if (Array.isArray(payload?.items)) return payload.items;
+    if (Array.isArray(payload?.content)) return payload.content;
+    return [];
+  };
+
   // Load profile photo from backend on mount
   useEffect(() => {
     const token = localStorage.getItem('authToken');
@@ -122,49 +135,48 @@ function TutorDashboard() {
 
   // Bookings
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
+    const token = getStoredAuthToken();
     if (!token) { setBookingsLoading(false); return; }
-    const fetchBookings = () => {
-      fetch('/api/bookings/tutor', { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.json())
-        .then(data => {
-          const bookings = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
-          const normalizedBookings = bookings.map(b => {
-            const rawStatus = (b.status || b.bookingStatus || '').toString().trim().toUpperCase();
-            const parsedSlotStart = b.slotStart ? new Date(b.slotStart) : null;
-            const parsedSlotEnd = b.slotEnd ? new Date(b.slotEnd) : null;
-            const hasValidSlotStart = parsedSlotStart && !Number.isNaN(parsedSlotStart.getTime());
-            const hasValidSlotEnd = parsedSlotEnd && !Number.isNaN(parsedSlotEnd.getTime());
-            const displayStatus = rawStatus || (hasValidSlotStart && parsedSlotStart < new Date() ? 'COMPLETED' : 'CONFIRMED');
-            const studentName = b.studentName || b.tutorName || `Student ${String(b.studentId || '').slice(0, 8)}` || 'Unknown';
-            const dayLabel = hasValidSlotStart
-              ? parsedSlotStart.toLocaleDateString('en-US', { weekday: 'long' })
-              : (b.dayOfWeek || '');
-            const timeRange = hasValidSlotStart
-              ? `${parsedSlotStart.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - ${
-                  hasValidSlotEnd
-                    ? parsedSlotEnd.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-                    : new Date(parsedSlotStart.getTime() + (30 * 60 * 1000)).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-                }`
-              : (b.time || '');
-            return {
-              ...b, status: displayStatus, tutor: studentName,
-              date: b.date || (hasValidSlotStart ? parsedSlotStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''),
-              time: b.time || (hasValidSlotStart ? parsedSlotStart.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : ''),
-              timeRange,
-              dayLabel,
-              subject: b.subject || 'General Tutoring',
-              location: b.locationName || b.location || 'Online',
-              slotStartDate: hasValidSlotStart ? parsedSlotStart : null,
-            };
-          });
-          const now = new Date();
-          const isPast = (b) => b.status === 'COMPLETED' || b.status === 'CANCELLED' || (b.slotStartDate && b.slotStartDate < now);
-          setUpcomingBookings(normalizedBookings.filter(b => !isPast(b)));
-          setPastBookings(normalizedBookings.filter(isPast));
-          setBookingsLoading(false);
-        })
-        .catch(() => setBookingsLoading(false));
+    const fetchBookings = async () => {
+      try {
+        const data = await getTutorBookings();
+        const bookings = toBookingRows(data);
+        const normalizedBookings = bookings.map(b => {
+          const rawStatus = (b.status || b.bookingStatus || '').toString().trim().toUpperCase();
+          const parsedSlotStart = b.slotStart ? new Date(b.slotStart) : null;
+          const parsedSlotEnd = b.slotEnd ? new Date(b.slotEnd) : null;
+          const hasValidSlotStart = parsedSlotStart && !Number.isNaN(parsedSlotStart.getTime());
+          const hasValidSlotEnd = parsedSlotEnd && !Number.isNaN(parsedSlotEnd.getTime());
+          const displayStatus = rawStatus || (hasValidSlotStart && parsedSlotStart < new Date() ? 'COMPLETED' : 'CONFIRMED');
+          const studentName = b.studentName || b.tutorName || `Student ${String(b.studentId || '').slice(0, 8)}` || 'Unknown';
+          const dayLabel = hasValidSlotStart
+            ? parsedSlotStart.toLocaleDateString('en-US', { weekday: 'long' })
+            : (b.dayOfWeek || '');
+          const timeRange = hasValidSlotStart
+            ? `${parsedSlotStart.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - ${
+                hasValidSlotEnd
+                  ? parsedSlotEnd.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                  : new Date(parsedSlotStart.getTime() + (30 * 60 * 1000)).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+              }`
+            : (b.time || '');
+          return {
+            ...b, status: displayStatus, tutor: studentName,
+            date: b.date || (hasValidSlotStart ? parsedSlotStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''),
+            time: b.time || (hasValidSlotStart ? parsedSlotStart.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : ''),
+            timeRange,
+            dayLabel,
+            subject: b.subject || 'General Tutoring',
+            location: b.locationName || b.location || 'Online',
+            slotStartDate: hasValidSlotStart ? parsedSlotStart : null,
+          };
+        });
+        const now = new Date();
+        const isPast = (b) => b.status === 'COMPLETED' || b.status === 'CANCELLED' || (b.slotStartDate && b.slotStartDate < now);
+        setUpcomingBookings(normalizedBookings.filter(b => !isPast(b)));
+        setPastBookings(normalizedBookings.filter(isPast));
+      } finally {
+        setBookingsLoading(false);
+      }
     };
     fetchBookings();
     const interval = setInterval(fetchBookings, 5000);
@@ -199,8 +211,11 @@ function TutorDashboard() {
         .then(data => {
           const subjectList = Array.isArray(data?.data) ? data.data : [];
           setSubjects(subjectList);
-          if (subjectList.length > 0 && !availabilityForm.subject) {
-            setAvailabilityForm(prev => ({ ...prev, subject: subjectList[0].name || '' }));
+          if (subjectList.length > 0) {
+            setAvailabilityForm(prev => {
+              if (prev.subject) return prev;
+              return { ...prev, subject: subjectList[0].name || '' };
+            });
           }
           setSubjectsLoading(false);
         })

@@ -156,10 +156,59 @@ function StudentDashboard() {
 
   const refreshBookings = async () => {
     const payload = await getMyBookings();
-    const rows = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
+    const rows = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.data)
+      ? payload.data
+      : Array.isArray(payload?.data?.data)
+      ? payload.data.data
+      : Array.isArray(payload?.bookings)
+      ? payload.bookings
+      : Array.isArray(payload?.payload?.bookings)
+      ? payload.payload.bookings
+      : Array.isArray(payload?.result)
+      ? payload.result
+      : Array.isArray(payload?.items)
+      ? payload.items
+      : [];
     const normalized = rows.map(normalizeBooking);
-    setUpcomingBookings(normalized.filter(b => b.status === 'CONFIRMED' || b.status === 'PENDING'));
-    setPastBookings(normalized.filter(b => b.status === 'COMPLETED' || b.status === 'CANCELLED'));
+
+    const now = new Date();
+    const toDate = (value) => {
+      if (!value) return null;
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    };
+
+    const isPastBooking = (booking) => {
+      const status = String(booking?.status || booking?.bookingStatus || '').trim().toUpperCase();
+      if (status === 'COMPLETED' || status === 'CANCELLED') return true;
+
+      const slotStart = toDate(booking?.slotStart || booking?.slot_start || booking?.startDateTime || booking?.start_datetime);
+      if (slotStart) return slotStart < now;
+
+      // Prefer raw ISO-like fields from backend over display-formatted date strings.
+      const bookingDate = booking?.bookingDate || booking?.booking_date || booking?.date;
+      const bookingTime = booking?.bookingTime || booking?.booking_time || booking?.time;
+
+      let fallbackDateTime = null;
+      if (bookingDate && bookingTime) {
+        const isoLike = `${bookingDate}T${bookingTime}`;
+        fallbackDateTime = toDate(isoLike) || toDate(`${bookingDate} ${bookingTime}`);
+      }
+
+      if (!fallbackDateTime && booking?.date && booking?.time) {
+        const currentYear = new Date().getFullYear();
+        fallbackDateTime = toDate(`${booking.date} ${currentYear} ${booking.time}`) || toDate(`${booking.date} ${booking.time}`);
+      }
+
+      if (fallbackDateTime) return fallbackDateTime < now;
+
+      return false;
+    };
+
+    setPastBookings(normalized.filter(isPastBooking));
+    setUpcomingBookings(normalized.filter((booking) => !isPastBooking(booking)));
   };
 
   useEffect(() => {

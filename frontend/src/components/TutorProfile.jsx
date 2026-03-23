@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Avatar } from './Avatar';
+import { getTutorAvailability } from '../apiService';
 
 function normalizeAvailabilitySlot(slot) {
   if (!slot || typeof slot !== 'object') return null;
@@ -33,14 +34,17 @@ export function TutorProfile({ tutor, onBack, onBookSession, refreshToken = 0 })
   useEffect(() => {
     if (!tutorId) { setSlotsLoading(false); return; }
     setSlotsLoading(true);
-    fetch(`/api/availability/tutor/${tutorId}`)
-      .then(r => r.json())
-      .then(data => {
+    getTutorAvailability(tutorId)
+      .then((data) => {
         const raw = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
         setAvailableSlots(raw.map(normalizeAvailabilitySlot).filter(Boolean));
-        setSlotsLoading(false);
       })
-      .catch(() => setSlotsLoading(false));
+      .catch(() => {
+        setAvailableSlots([]);
+      })
+      .finally(() => {
+        setSlotsLoading(false);
+      });
   }, [tutorId, refreshToken]);
 
   if (!tutor) return null;

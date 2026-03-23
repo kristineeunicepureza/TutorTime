@@ -23,6 +23,25 @@ const getStoredAuthToken = () => {
 // ✅ EXPORTED: Use in components that need manual token retrieval
 export { getStoredAuthToken };
 
+/**
+ * Extract user ID (sub claim) from JWT token
+ */
+const extractUserIdFromToken = () => {
+  try {
+    const token = getStoredAuthToken();
+    if (!token || !token.includes('.')) return '';
+    const payload = token.split('.')[1];
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(atob(normalized).split('').map((c) => `%${(`00${c.charCodeAt(0).toString(16)}`).slice(-2)}`).join(''));
+    const parsed = JSON.parse(json);
+    return parsed?.sub || '';
+  } catch {
+    return '';
+  }
+};
+
+export { extractUserIdFromToken };
+
 const isPublicEndpoint = (endpoint) => endpoint === '/login' || endpoint === '/register';
 
 /**
@@ -59,8 +78,17 @@ const makeRequest = async (endpoint, options = {}) => {
     }
 
     if (!response.ok) {
-      const serverMessage = data?.message || data?.error || data?.details;
-      throw new Error(serverMessage || `API Error: ${response.status}`);
+      const nestedError = data?.error;
+      const serverMessage =
+        nestedError?.message ||
+        (typeof nestedError === 'string' ? nestedError : null) ||
+        data?.message ||
+        data?.details;
+      const err = new Error(serverMessage || `API Error: ${response.status}`);
+      if (nestedError?.code) {
+        err.code = nestedError.code;
+      }
+      throw err;
     }
 
     return data;
@@ -196,13 +224,73 @@ export const searchTutors = async (query) => {
   });
 };
 
+const toBookingRows = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.data?.data)) return payload.data.data;
+  if (Array.isArray(payload?.bookings)) return payload.bookings;
+  if (Array.isArray(payload?.payload?.bookings)) return payload.payload.bookings;
+  if (Array.isArray(payload?.result)) return payload.result;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.content)) return payload.content;
+  return [];
+};
+
+const hasBrokenBookingPayload = (payload) => {
+  const rows = toBookingRows(payload);
+  return payload?.success === false && rows.length === 0;
+};
+
+const getBookingsFromCandidates = async (candidates) => {
+  let lastPayload = { data: [] };
+  let firstSuccessfulEmptyPayload = null;
+
+  for (const endpoint of candidates) {
+    try {
+      const payload = await makeRequest(endpoint, { method: 'GET' });
+      const rows = toBookingRows(payload);
+
+      if (rows.length > 0) {
+        return payload;
+      }
+
+      if (!hasBrokenBookingPayload(payload)) {
+        // Keep searching other compatible endpoints before settling on an empty response.
+        if (!firstSuccessfulEmptyPayload) {
+          firstSuccessfulEmptyPayload = payload;
+        }
+        lastPayload = payload;
+        continue;
+      }
+
+      lastPayload = payload;
+    } catch (error) {
+      lastPayload = {
+        success: false,
+        message: error?.message || 'Failed to fetch bookings',
+        data: [],
+      };
+    }
+  }
+
+  return firstSuccessfulEmptyPayload || lastPayload;
+};
+
 // ── Bookings ──────────────────────────────────────────────────────
 export const getMyBookings = async () => {
-  return makeRequest('/bookings/student', { method: 'GET' });
+  return getBookingsFromCandidates([
+    '/bookings/student',
+    '/bookings/my',
+    '/bookings',
+  ]);
 };
 
 export const getTutorBookings = async () => {
-  return makeRequest('/bookings/tutor', { method: 'GET' });
+  return getBookingsFromCandidates([
+    '/bookings/tutor',
+    '/bookings/my',
+    '/bookings',
+  ]);
 };
 
 export const createBooking = async (bookingData) => {
@@ -223,6 +311,10 @@ export const cancelBooking = async (id) => {
 // ── Availability ──────────────────────────────────────────────────
 export const getAvailability = async () => {
   return makeRequest('/availability', { method: 'GET' });
+};
+
+export const getTutorAvailability = async (tutorId) => {
+  return makeRequest(`/availability/tutor/${tutorId}`, { method: 'GET' });
 };
 
 export const addAvailability = async (availabilityData) => {
