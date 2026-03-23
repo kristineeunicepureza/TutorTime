@@ -99,7 +99,8 @@ public class AvailabilityService {
     }
 
     /**
-     * Get all availability slots for a tutor
+     * Get all UNBOOKED availability slots for a tutor
+     * Booked slots should only appear in "My Bookings", not in "Manage Availability"
      */
     public List<Availability> getAvailabilityByTutorId(String uid) {
         Optional<TutorProfile> tutorOpt = tutorProfileRepository.findByUserId(parseUuid(uid, "userId"));
@@ -112,7 +113,11 @@ public class AvailabilityService {
             return List.of();
         }
 
-        return availabilityRepository.findByTutorId(parseUuid(tutor.getId(), "tutorId"));
+        // Get all slots and filter out booked ones
+        List<Availability> allSlots = availabilityRepository.findByTutorId(parseUuid(tutor.getId(), "tutorId"));
+        return allSlots.stream()
+            .filter(slot -> !Boolean.TRUE.equals(slot.getIsBooked()))
+            .collect(Collectors.toList());
     }
 
     /**

@@ -72,6 +72,12 @@
 			<artifactId>httpclient5</artifactId>
 		</dependency>
 
+		<!-- Password hashing (BCrypt) -->
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-crypto</artifactId>
+		</dependency>
+
 		<!-- Mockito as proper agent (silences self-attach warning) -->
 		<dependency>
 			<groupId>org.mockito</groupId>

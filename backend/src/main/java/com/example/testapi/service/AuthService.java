@@ -14,6 +14,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
@@ -28,6 +29,8 @@ import com.example.testapi.repository.UserRepository;
 
 @Service
 public class AuthService {
+
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     private UUID parseUuid(String id, String fieldName) {
         try {
@@ -313,14 +316,17 @@ public class AuthService {
                 Map<String, Object> userMap = (Map<String, Object>) response.get("user");
                 String uid = userMap.get("id").toString();
 
-                String resolvedUid = saveUserToSupabase(uid, normalizedEmail, fullName, userType);
+                String hashedPassword = passwordEncoder.encode(password);
+                System.out.println("🔐 Password hashing enabled - Original length: " + password.length() + ", Hash length: " + hashedPassword.length());
+
+                String resolvedUid = saveUserToSupabase(uid, normalizedEmail, fullName, userType, hashedPassword);
 
                 try {
                     User user = new User();
                     user.setId(resolvedUid);
                     user.setEmail(normalizedEmail);
                     user.setFullName(fullName);
-                    user.setPasswordHash(password);
+                    user.setPasswordHash(hashedPassword);
                     user.setRole(userType);
                     user.setVerified(true);
                     userRepository.save(user);
@@ -382,7 +388,7 @@ public class AuthService {
     // ─────────────────────────────────────────────────────────────────
     // saveUserToSupabase  (unchanged from your original)
     // ─────────────────────────────────────────────────────────────────
-    private String saveUserToSupabase(String uid, String email, String fullName, String userType) {
+    private String saveUserToSupabase(String uid, String email, String fullName, String userType, String hashedPassword) {
         try {
             String url = supabaseUrl + "/rest/v1/users";
             HttpHeaders headers = new HttpHeaders();
@@ -393,7 +399,7 @@ public class AuthService {
             Map<String, Object> userPayload = new HashMap<>();
             userPayload.put("id", uid);
             userPayload.put("email", email);
-            userPayload.put("password_hash", "auth_managed");
+            userPayload.put("password_hash", hashedPassword);
             userPayload.put("full_name", fullName);
             userPayload.put("role", userType);
             userPayload.put("verified", true);

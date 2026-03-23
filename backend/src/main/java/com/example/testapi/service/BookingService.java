@@ -16,6 +16,7 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.example.testapi.entity.Availability;
 import com.example.testapi.entity.Booking;
@@ -23,6 +24,7 @@ import com.example.testapi.entity.Location;
 import com.example.testapi.entity.StudentProfile;
 import com.example.testapi.entity.TutorProfile;
 import com.example.testapi.entity.User;
+import com.example.testapi.exception.BusinessException;
 import com.example.testapi.model.BookingDetailResponse;
 import com.example.testapi.model.CancelBookingRequest;
 import com.example.testapi.model.CreateBookingRequest;
@@ -280,6 +282,7 @@ public class BookingService {
      * AC-1: Student books a tutor appointment
      * Creates booking, marks slot as booked, sends notification to tutor
      */
+    @Transactional
     public Booking createBooking(String studentId, CreateBookingRequest request) {
         Optional<User> studentOpt = userRepository.findById(parseUuid(studentId, "studentId"));
         if (studentOpt.isEmpty()) {
@@ -296,14 +299,14 @@ public class BookingService {
 
         // Validate availability slot exists
         UUID availabilityId = parseUuid(request.getAvailabilityId(), "availabilityId");
-        Optional<Availability> availOpt = availabilityRepository.findById(availabilityId);
+        Optional<Availability> availOpt = availabilityRepository.findByIdForUpdate(availabilityId);
         if (availOpt.isEmpty()) {
             throw new RuntimeException("Availability slot not found");
         }
         Availability availability = availOpt.get();
 
         if (Boolean.TRUE.equals(availability.getIsBooked())) {
-            throw new RuntimeException("This time slot has already been booked");
+            throw new BusinessException("BUSINESS-001", "Slot already booked");
         }
 
         // Ensure student is booking a slot that belongs to the requested tutor.
@@ -382,7 +385,7 @@ public class BookingService {
         boolean alreadyBookedForOccurrence = existingBookings.stream()
             .anyMatch(existing -> existing.getSlotStart() != null && existing.getSlotStart().equals(slotStart));
         if (alreadyBookedForOccurrence) {
-            throw new RuntimeException("This tutor slot is already booked for the selected date/time");
+            throw new BusinessException("BUSINESS-001", "Slot already booked");
         }
 
         booking.setSlotStart(slotStart);
@@ -496,6 +499,66 @@ public class BookingService {
     }
 
     /**
+     * ✅ FIX: Transform a single Booking to BookingDetailResponse with full details
+     * Used by createBooking endpoint to return enriched response immediately
+     */
+    public BookingDetailResponse transformBookingToResponse(Booking booking, boolean forStudent) {
+        BookingDetailResponse response = new BookingDetailResponse();
+        response.setId(booking.getId());
+        response.setStudentId(booking.getStudentId());
+        response.setTutorId(booking.getTutorId());
+        response.setSubject(booking.getSubject());
+        response.setLocationId(booking.getLocationId());
+        response.setLocationName(resolveLocationName(booking.getLocationId()));
+        response.setBookingStatus(booking.getBookingStatus());
+        response.setStatus(booking.getBookingStatus());
+        response.setCancellationReason(booking.getCancellationReason());
+        response.setDurationMinutes(booking.getDurationMinutes());
+        response.setPrice(booking.getPrice());
+        response.setCreatedAt(booking.getCreatedAt());
+        
+        // For student view, set student name; for tutor view, set both
+        if (forStudent) {
+            try {
+                String studentUserId = resolveStudentUserIdFromProfileId(booking.getStudentId());
+                Optional<User> studentOpt = userRepository.findById(parseUuid(studentUserId, "studentUserId"));
+                if (studentOpt.isPresent()) {
+                    response.setStudentName(studentOpt.get().getFullName());
+                } else {
+                    response.setStudentName("Unknown Student");
+                }
+            } catch (Exception e) {
+                response.setStudentName("Unknown Student");
+            }
+        }
+        
+        // Always set tutor name
+        try {
+            String tutorUserId = resolveTutorUserIdFromProfileId(booking.getTutorId());
+            Optional<User> tutorOpt = userRepository.findById(parseUuid(tutorUserId, "tutorUserId"));
+            if (tutorOpt.isPresent()) {
+                response.setTutorName(tutorOpt.get().getFullName());
+            } else {
+                response.setTutorName("Unknown Tutor");
+            }
+        } catch (Exception e) {
+            response.setTutorName("Unknown Tutor");
+        }
+        
+        // Parse slot start/end times
+        if (booking.getSlotStart() != null) {
+            response.setSlotStart(booking.getSlotStart().toString());
+            response.setDate(booking.getSlotStart().format(java.time.format.DateTimeFormatter.ofPattern("MMM d")));
+            response.setTime(booking.getSlotStart().format(java.time.format.DateTimeFormatter.ofPattern("h:mm a")));
+        }
+        if (booking.getSlotEnd() != null) {
+            response.setSlotEnd(booking.getSlotEnd().toString());
+        }
+        
+        return response;
+    }
+
+    /**
      * Get student bookings with complete details (tutor name, location, etc)
      * Transforms Booking entities to BookingDetailResponse DTOs
      */
@@ -504,44 +567,7 @@ public class BookingService {
         List<BookingDetailResponse> responses = new ArrayList<>();
         
         for (Booking booking : bookings) {
-            BookingDetailResponse response = new BookingDetailResponse();
-            response.setId(booking.getId());
-            response.setStudentId(booking.getStudentId());
-            response.setTutorId(booking.getTutorId());
-            response.setSubject(booking.getSubject());
-            response.setLocationId(booking.getLocationId());
-            response.setLocationName(resolveLocationName(booking.getLocationId()));
-            response.setBookingStatus(booking.getBookingStatus());
-            response.setStatus(booking.getBookingStatus());
-            response.setCancellationReason(booking.getCancellationReason());
-            response.setDurationMinutes(booking.getDurationMinutes());
-            response.setPrice(booking.getPrice());
-            response.setCreatedAt(booking.getCreatedAt());
-            
-            // Fetch tutor name
-            try {
-                String tutorUserId = resolveTutorUserIdFromProfileId(booking.getTutorId());
-                Optional<User> tutorOpt = userRepository.findById(parseUuid(tutorUserId, "tutorUserId"));
-                if (tutorOpt.isPresent()) {
-                    response.setTutorName(tutorOpt.get().getFullName());
-                } else {
-                    response.setTutorName("Unknown Tutor");
-                }
-            } catch (Exception e) {
-                response.setTutorName("Unknown Tutor");
-            }
-            
-            // Parse slot start/end times
-            if (booking.getSlotStart() != null) {
-                response.setSlotStart(booking.getSlotStart().toString());
-                response.setDate(booking.getSlotStart().format(java.time.format.DateTimeFormatter.ofPattern("MMM d")));
-                response.setTime(booking.getSlotStart().format(java.time.format.DateTimeFormatter.ofPattern("h:mm a")));
-            }
-            if (booking.getSlotEnd() != null) {
-                response.setSlotEnd(booking.getSlotEnd().toString());
-            }
-            
-            responses.add(response);
+            responses.add(transformBookingToResponse(booking, true));
         }
         
         return responses;
@@ -601,21 +627,9 @@ public class BookingService {
         List<BookingDetailResponse> responses = new ArrayList<>();
         
         for (Booking booking : bookings) {
-            BookingDetailResponse response = new BookingDetailResponse();
-            response.setId(booking.getId());
-            response.setStudentId(booking.getStudentId());
-            response.setTutorId(booking.getTutorId());
-            response.setSubject(booking.getSubject());
-            response.setLocationId(booking.getLocationId());
-            response.setLocationName(resolveLocationName(booking.getLocationId()));
-            response.setBookingStatus(booking.getBookingStatus());
-            response.setStatus(booking.getBookingStatus());
-            response.setCancellationReason(booking.getCancellationReason());
-            response.setDurationMinutes(booking.getDurationMinutes());
-            response.setPrice(booking.getPrice());
-            response.setCreatedAt(booking.getCreatedAt());
+            BookingDetailResponse response = transformBookingToResponse(booking, false);
             
-            // Fetch student name (displayed as "tutor" field for compatibility with normalization)
+            // For tutor view: also set studentName and tutorName to same student name for compatibility
             try {
                 String studentUserId = resolveStudentUserIdFromProfileId(booking.getStudentId());
                 Optional<User> studentOpt = userRepository.findById(parseUuid(studentUserId, "studentUserId"));
@@ -632,16 +646,6 @@ public class BookingService {
                 response.setTutorName("Unknown Student");
             }
             
-            // Parse slot start/end times
-            if (booking.getSlotStart() != null) {
-                response.setSlotStart(booking.getSlotStart().toString());
-                response.setDate(booking.getSlotStart().format(java.time.format.DateTimeFormatter.ofPattern("MMM d")));
-                response.setTime(booking.getSlotStart().format(java.time.format.DateTimeFormatter.ofPattern("h:mm a")));
-            }
-            if (booking.getSlotEnd() != null) {
-                response.setSlotEnd(booking.getSlotEnd().toString());
-            }
-            
             responses.add(response);
         }
         
@@ -652,6 +656,7 @@ public class BookingService {
      * AC-6: Cancel a booking
      * Updates booking status to CANCELLED and reverts slot availability
      */
+    @Transactional
     public Booking cancelBooking(String bookingId, String userId, CancelBookingRequest request) {
         Optional<Booking> bookingOpt = bookingRepository.findById(parseUuid(bookingId, "bookingId"));
         if (bookingOpt.isEmpty()) {
@@ -691,7 +696,7 @@ public class BookingService {
         Booking updated = bookingRepository.save(booking);
 
         // AC-6: Revert slot availability
-        Optional<Availability> availOpt = availabilityRepository.findById(parseUuid(booking.getAvailabilityId(), "availabilityId"));
+        Optional<Availability> availOpt = availabilityRepository.findByIdForUpdate(parseUuid(booking.getAvailabilityId(), "availabilityId"));
         if (availOpt.isPresent()) {
             Availability availability = availOpt.get();
             availability.setIsBooked(false);

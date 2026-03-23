@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.testapi.entity.Booking;
+import com.example.testapi.exception.BusinessException;
+import com.example.testapi.model.BookingDetailResponse;
 import com.example.testapi.model.CancelBookingRequest;
 import com.example.testapi.model.CreateBookingRequest;
 import com.example.testapi.service.AuthService;
@@ -32,6 +34,17 @@ public class BookingController {
         return e.getMessage();
     }
 
+    private ResponseEntity<Map<String, Object>> buildErrorResponse(HttpStatus status, String code, String message) {
+        return ResponseEntity.status(status).body(Map.of(
+            "success", false,
+            "message", message,
+            "error", Map.of(
+                "code", code,
+                "message", message
+            )
+        ));
+    }
+
     @Autowired
     private BookingService bookingService;
 
@@ -46,21 +59,29 @@ public class BookingController {
     public ResponseEntity<Map<String, Object>> createBooking(
             @RequestHeader("Authorization") String authorization,
             @RequestBody CreateBookingRequest request) {
+        // ✅ FIX: Explicit auth header validation
+        if (authorization == null || !authorization.startsWith("Bearer ")) {
+            return buildErrorResponse(HttpStatus.UNAUTHORIZED, "AUTH-001", "Missing or invalid Authorization header");
+        }
+        
         try {
             String token = authService.extractToken(authorization);
             String studentId = authService.verifyTokenAndGetUid(token);
 
             Booking booking = bookingService.createBooking(studentId, request);
+            
+            // ✅ FIX: Transform to BookingDetailResponse for complete client-side data
+            BookingDetailResponse detailedResponse = bookingService.transformBookingToResponse(booking, true);
+            
             return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "Booking created successfully",
-                "data", booking
+                "data", detailedResponse
             ));
+        } catch (BusinessException e) {
+            return buildErrorResponse(HttpStatus.CONFLICT, e.getCode(), safeMessage(e, "Booking business rule violation"));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
-                "success", false,
-                "message", safeMessage(e, "Failed to create booking")
-            ));
+            return buildErrorResponse(HttpStatus.BAD_REQUEST, "BOOKING-001", safeMessage(e, "Failed to create booking"));
         }
     }
 
@@ -181,10 +202,23 @@ public class BookingController {
                 "message", "Booking cancelled successfully",
                 "data", cancelled
             );
+        } catch (BusinessException e) {
+            return Map.of(
+                "success", false,
+                "message", safeMessage(e, "Failed to cancel booking"),
+                "error", Map.of(
+                    "code", e.getCode(),
+                    "message", safeMessage(e, "Failed to cancel booking")
+                )
+            );
         } catch (RuntimeException e) {
             return Map.of(
                 "success", false,
-                "message", safeMessage(e, "Failed to cancel booking")
+                "message", safeMessage(e, "Failed to cancel booking"),
+                "error", Map.of(
+                    "code", "BOOKING-002",
+                    "message", safeMessage(e, "Failed to cancel booking")
+                )
             );
         }
     }
