@@ -17,6 +17,7 @@ import { AdminDashboard }           from './pages/admin/AdminDashboard';
 import { AdminUsers }               from './pages/admin/AdminUsers';
 import { AdminSessions }            from './pages/admin/AdminSessions';
 import { AdminTutorVerification }   from './pages/admin/AdminTutorVerification';
+import { AdminCatalog }             from './pages/admin/AdminCatalog';
 import { AdminSettings }            from './pages/admin/AdminSettings';
 
 import { ProfilePage }              from './pages/shared/ProfilePage';
@@ -53,6 +54,7 @@ export const router = createBrowserRouter([
       { path: 'tutor/students',       element: <TutorApprovedRoute component={TutorStudents}     /> },
 
       { path: 'admin/dashboard',      Component: AdminDashboard         },
+      { path: 'admin/catalog',        Component: AdminCatalog           },
       { path: 'admin/users',          Component: AdminUsers             },
       { path: 'admin/sessions',       Component: AdminSessions          },
       { path: 'admin/tutor-verify',   Component: AdminTutorVerification },

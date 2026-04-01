@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { useApp } from '../../context/AppContext';
 import { Sidebar } from '../../components/shared/Sidebar';
-import { User, Settings, ArrowRight, Sparkles, Users, Calendar, ShieldCheck } from 'lucide-react';
+import { User, BookOpen, MapPin, ArrowRight, Sparkles, Users, Calendar, ShieldCheck } from 'lucide-react';
 
 export function AdminDashboard() {
   const { currentUser } = useApp();
@@ -16,8 +16,15 @@ export function AdminDashboard() {
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
+  const CatalogIcon = () => (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+      <BookOpen size={22} color="white" style={{ marginRight: '-4px' }} />
+      <MapPin size={22} color="white" />
+    </div>
+  );
+
   const quickActions = [
-    { icon: Settings, label: 'System Settings', desc: 'Configure platform', path: '/profile', gradient: 'linear-gradient(135deg, #3B82F6, #1D4ED8)', shadow: 'rgba(37,99,235,0.3)' },
+    { icon: CatalogIcon, label: 'Manage Catalog', desc: 'Subjects & Locations', path: '/admin/catalog', gradient: 'linear-gradient(135deg, #6366F1, #4F46E5)', shadow: 'rgba(99,102,241,0.3)' },
     { icon: Users, label: 'Manage Users', desc: 'View all users', path: '/admin/users', gradient: 'linear-gradient(135deg, #10B981, #059669)', shadow: 'rgba(5,150,105,0.3)' },
     { icon: Calendar, label: 'Sessions', desc: 'Track all sessions', path: '/admin/sessions', gradient: 'linear-gradient(135deg, #F59E0B, #D97706)', shadow: 'rgba(217,119,6,0.3)' },
   ];
@@ -136,7 +143,7 @@ export function AdminDashboard() {
                 }}
               >
                 <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 4px 12px ${shadow}` }}>
-                  <Icon size={22} color="white" />
+                  <Icon />
                 </div>
                 <div>
                   <div style={{ color: '#001a4d', fontWeight: 700, fontSize: '14.5px', marginBottom: '3px' }}>{label}</div>
@@ -154,9 +161,15 @@ export function AdminDashboard() {
             background: 'white', borderRadius: '16px', padding: '24px',
             boxShadow: '0 4px 20px rgba(0,47,108,0.07)', border: '1px solid rgba(59,130,246,0.08)',
           }}>
-            <h2 style={{ color: '#001a4d', fontWeight: 700, fontSize: '15px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <User size={16} color="#3B82F6" /> Admin Account
-            </h2>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <h2 style={{ color: '#001a4d', fontWeight: 700, fontSize: '15px', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                <User size={16} color="#3B82F6" /> Admin Account
+              </h2>
+              <button onClick={() => navigate('/admin/settings')} style={{
+                padding: '7px 14px', borderRadius: '8px', background: '#EFF6FF', border: '1px solid #BFDBFE',
+                color: '#2563EB', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+              }}>Edit Settings</button>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
               {[
                 { label: 'Full Name', value: `${currentUser.firstName} ${currentUser.lastName}` },
